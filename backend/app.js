@@ -27,6 +27,7 @@ import technicianRoutes from './routes/technicianRoutes.js';
 import replacementRequestRoutes from './routes/replacementRequestRoutes.js';
 import customerRoutes from './routes/customerRoutes.js';
 import billingConfigRoutes from './routes/billingConfigRoutes.js';
+import executiveRoutes from './routes/executiveRoutes.js'
 
 dotenv.config();
 
@@ -65,6 +66,7 @@ app.use('/api/customers', customerRoutes);
 app.use('/api/replacement-requests', replacementRequestRoutes);
 app.use('/api/technicians', technicianRoutes);
 app.use('/api/billing-config', billingConfigRoutes);
+app.use('/api/executive', executiveRoutes)
 
 app.get("/", (req, res) => {
   res.send("🚀 Backend is running!");

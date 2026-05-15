@@ -124,8 +124,6 @@ export const useOrders = () => {
   };
 
   const deleteOrder = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this order?')) return false;
-
     try {
       await orderService.deleteOrder(id);
       const updatedOrders = orders.filter(order => order._id !== id);
@@ -141,8 +139,6 @@ export const useOrders = () => {
   };
 
   const deleteMultipleOrders = async (ids) => {
-    if (!window.confirm(`Are you sure you want to delete ${ids.length} selected orders?`)) return false;
-
     try {
       await orderService.deleteMultipleOrders(ids);
       const updatedOrders = orders.filter(order => !ids.includes(order._id));

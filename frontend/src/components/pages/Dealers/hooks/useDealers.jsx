@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { dealerService } from '../services/dealerService';
 import { toast } from 'react-hot-toast';
+import { confirmDelete } from '../../../global/deleteConfirm';
 
 export const useDealers = () => {
     const [searchTerm, setSearchTerm] = useState('');
@@ -66,18 +67,23 @@ export const useDealers = () => {
     };
 
     const deleteDealer = async (dealerId) => {
-        if (window.confirm('Are you sure you want to delete this dealer?')) {
-            try {
-                await dealerService.deleteDealer(dealerId);
-                setDealers(prev => prev.filter(d => d._id !== dealerId));
-                toast.success('Dealer deleted successfully');
-                return true;
-            } catch (error) {
-                toast.error(error.response?.data?.message || 'Error deleting dealer');
-                return false;
-            }
+        const dealer = dealers.find(d => d._id === dealerId);
+        const confirmed = await confirmDelete({
+            entityLabel: 'dealer',
+            itemName: dealer?.name,
+        });
+
+        if (!confirmed) return false;
+
+        try {
+            await dealerService.deleteDealer(dealerId);
+            setDealers(prev => prev.filter(d => d._id !== dealerId));
+            toast.success('Dealer deleted successfully');
+            return true;
+        } catch (error) {
+            toast.error(error.response?.data?.message || 'Error deleting dealer');
+            return false;
         }
-        return false;
     };
 
     return {

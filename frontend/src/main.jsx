@@ -4,6 +4,16 @@ import './index.css';
 import App from './App.jsx';
 import { AuthProvider } from './context/AuthContext';
 import axios from 'axios';
+import DeleteConfirmationProvider from './components/global/DeleteConfirmationProvider.jsx';
+
+const redirectToLogin = () => {
+  localStorage.removeItem('user');
+  localStorage.removeItem('token');
+
+  if (window.location.pathname !== '/login') {
+    window.location.replace('/login');
+  }
+};
 
 // Add a request interceptor
 axios.interceptors.request.use(
@@ -20,10 +30,25 @@ axios.interceptors.request.use(
   }
 );
 
+axios.interceptors.response.use(
+  response => response,
+  error => {
+    const status = error.response?.status;
+
+    if (status === 401) {
+      redirectToLogin();
+    }
+
+    return Promise.reject(error);
+  }
+);
+
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    <AuthProvider>
-      <App />
-    </AuthProvider>
+    <DeleteConfirmationProvider>
+      <AuthProvider>
+        <App />
+      </AuthProvider>
+    </DeleteConfirmationProvider>
   </StrictMode>,
 )

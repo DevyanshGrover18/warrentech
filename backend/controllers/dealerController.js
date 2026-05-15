@@ -2,10 +2,12 @@ import Dealer from '../models/Dealer.js';
 import Distributor from '../models/Distributor.js';
 import User from '../models/User.js';
 import bcrypt from 'bcryptjs';
+import { getExecutiveScope } from '../utils/executiveScope.js';
 
 export const getDealers = async (req, res) => {
     try {
         const { search } = req.query;
+        const scope = await getExecutiveScope(req.user);
         let matchQuery = {};
 
         if (search) {
@@ -16,6 +18,13 @@ export const getDealers = async (req, res) => {
                     { state: { $regex: search, $options: 'i' } },
                     { city: { $regex: search, $options: 'i' } }
                 ]
+            };
+        }
+
+        if (scope.isExecutive) {
+            matchQuery = {
+                ...matchQuery,
+                _id: { $in: scope.dealerObjectIds }
             };
         }
 

@@ -4,6 +4,7 @@ import Product from '../models/Product.js';
 import DistributorDealerProduct from '../models/DistributorDealerProduct.js';
 import Dealer from '../models/Dealer.js';
 import mongoose from 'mongoose';
+import { getExecutiveScope, getDealerIdsForExecutiveScope } from '../utils/executiveScope.js';
 
 export const getDealerSales = async (req, res) => {
     try {
@@ -296,10 +297,13 @@ export const updateSale = async (req, res) => {
 
 export const getAssignedProducts = async (req, res) => {
   try {
+    const scope = await getExecutiveScope(req.user);
+    const productFilter = scope.isExecutive
+      ? { distributor: { $in: scope.distributorIds } }
+      : { distributor: { $ne: null } };
+
     // Get all products that are assigned to distributors
-    const products = await Product.find({ 
-      distributor: { $ne: null } 
-    })
+    const products = await Product.find(productFilter)
     .populate('model')
     .populate('distributor')
     .populate('factory')
@@ -370,7 +374,18 @@ export const getAssignedProducts = async (req, res) => {
 
 export const getAllSales = async (req, res) => {
     try {
-        const sales = await Sale.find({})
+        const scope = await getExecutiveScope(req.user);
+        const dealerIds = scope.isExecutive ? await getDealerIdsForExecutiveScope(req.user) : [];
+        const salesFilter = scope.isExecutive
+            ? {
+                $or: [
+                    { distributor: { $in: scope.distributorIds } },
+                    { dealer: { $in: dealerIds } }
+                ]
+            }
+            : {};
+
+        const sales = await Sale.find(salesFilter)
             .populate({
                 path: 'product',
                 populate: {

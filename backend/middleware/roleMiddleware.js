@@ -1,6 +1,28 @@
 import jwt from 'jsonwebtoken';
 import UserRole from '../models/UserRole.js';
 
+const fullAccess = {
+    view: true,
+    add: true,
+    modify: true,
+    delete: true,
+    full: true
+};
+
+const adminPermissions = {
+    management: fullAccess,
+    factories: fullAccess,
+    orders: fullAccess,
+    products: fullAccess,
+    distributors: fullAccess,
+    dealers: fullAccess,
+    sales: fullAccess,
+    customers: fullAccess,
+    replacement: fullAccess,
+    technicians: fullAccess,
+    notifications: fullAccess
+};
+
 const verifyToken = (req, res, next) => {
     const token = req.headers.authorization?.split(' ')[1];
     
@@ -25,15 +47,11 @@ const checkPermission = (section, permission) => {
             // If a UserRole document is not found, allow access for users with 'admin' role
             if (!user) {
                 if (req.user.role === 'admin') {
-                    // grant full access permissions for admin
-                    req.userPermissions = {
-                        management: { add: true, modify: true, delete: true, full: true },
-                        factories: { add: true, modify: true, delete: true, full: true },
-                        orders: { add: true, modify: true, delete: true, full: true },
-                        products: { add: true, modify: true, delete: true, full: true },
-                        distributors: { add: true, modify: true, delete: true, full: true },
-                        dealers: { add: true, modify: true, delete: true, full: true }
-                    };
+                    req.userPermissions = adminPermissions;
+                    return next();
+                }
+
+                if (req.user.role === 'executive' && ['products', 'distributors', 'dealers', 'customers', 'replacement'].includes(section)) {
                     return next();
                 }
 
@@ -99,19 +117,16 @@ const checkSectionAccess = (section) => {
     return async (req, res, next) => {
         try {
             const user = await UserRole.findById(req.user.id);
+            const executiveAllowedSections = ['products', 'distributors', 'dealers', 'customers', 'replacement', 'sales'];
 
             // If a UserRole document is not found, allow access for users with 'admin' role
             if (!user) {
                 if (req.user.role === 'admin') {
-                    // grant full access permissions for admin
-                    req.userPermissions = {
-                        management: { add: true, modify: true, delete: true, full: true },
-                        factories: { add: true, modify: true, delete: true, full: true },
-                        orders: { add: true, modify: true, delete: true, full: true },
-                        products: { add: true, modify: true, delete: true, full: true },
-                        distributors: { add: true, modify: true, delete: true, full: true },
-                        dealers: { add: true, modify: true, delete: true, full: true }
-                    };
+                    req.userPermissions = adminPermissions;
+                    return next();
+                }
+
+                if (req.user.role === 'executive' && executiveAllowedSections.includes(section)) {
                     return next();
                 }
 
@@ -126,6 +141,10 @@ const checkSectionAccess = (section) => {
             const hasAccess = user.hasAccessToSection(section);
 
             if (!hasAccess) {
+                if (req.user.role === 'executive' && executiveAllowedSections.includes(section)) {
+                    return next();
+                }
+
                 return res.status(403).json({ 
                     message: `Access denied. You do not have permission to view this section.`
                 });

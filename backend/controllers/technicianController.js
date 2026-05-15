@@ -2,6 +2,7 @@ import ReplacementRequest from '../models/ReplacementRequest.js';
 import Technician from '../models/Technician.js';
 import User from '../models/User.js';
 import bcrypt from 'bcryptjs';
+import { getExecutiveScope } from '../utils/executiveScope.js';
 
 export const createTechnician = async (req, res) => {
     const { name, phone, address, state, city, username, password, technicianCode } = req.body;
@@ -66,6 +67,7 @@ export const checkTechnicianCode = async (req, res) => {
 export const getTechnicians = async (req, res) => {
     try {
         const { state, city } = req.query;
+        const scope = await getExecutiveScope(req.user);
         const filter = {};
 
         if (state) {
@@ -73,6 +75,10 @@ export const getTechnicians = async (req, res) => {
         }
         if (city) {
             filter.city = city;
+        }
+
+        if (scope.isExecutive && scope.distributorIds.length === 0) {
+            return res.json([]);
         }
 
         const technicians = await Technician.find(filter)

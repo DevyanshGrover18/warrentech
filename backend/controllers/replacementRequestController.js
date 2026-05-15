@@ -2,6 +2,8 @@ import ReplacementRequest from '../models/ReplacementRequest.js';
 import Product from '../models/Product.js';
 import Sale from '../models/Sale.js';
 import Technician from '../models/Technician.js';
+import mongoose from 'mongoose';
+import { getExecutiveScope } from '../utils/executiveScope.js';
 
 export const createReplacementRequest = async (req, res) => {
     try {
@@ -50,17 +52,62 @@ export const createReplacementRequest = async (req, res) => {
 
 import Customer from '../models/Customer.js';
 
+const getReplacementScopeMatch = async (user) => {
+    const scope = await getExecutiveScope(user);
+
+    if (!scope.isExecutive) {
+        return null;
+    }
+
+    return {
+        'productInfo.distributor': {
+            $in: scope.distributorIds.map(id => new mongoose.Types.ObjectId(id))
+        }
+    };
+};
+
 export const getReplacementRequests = async (req, res) => {
     try {
-        let requests = await ReplacementRequest.find()
-            .populate({
-                path: 'product',
-                populate: {
-                    path: 'model',
+        const replacementScopeMatch = await getReplacementScopeMatch(req.user);
+        let requests;
+
+        if (replacementScopeMatch) {
+            requests = await ReplacementRequest.aggregate([
+                {
+                    $lookup: {
+                        from: 'products',
+                        localField: 'product',
+                        foreignField: '_id',
+                        as: 'productInfo'
+                    }
                 },
+                { $unwind: '$productInfo' },
+                { $match: replacementScopeMatch },
+                { $project: { _id: 1 } }
+            ]);
+
+            requests = await ReplacementRequest.find({
+                _id: { $in: requests.map(request => request._id) }
             })
-            .populate('customer') // Now correctly populates the Customer model
-            .lean(); 
+                .populate({
+                    path: 'product',
+                    populate: {
+                        path: 'model',
+                    },
+                })
+                .populate('customer')
+                .lean();
+        } else {
+            requests = await ReplacementRequest.find()
+                .populate({
+                    path: 'product',
+                    populate: {
+                        path: 'model',
+                    },
+                })
+                .populate('customer')
+                .lean();
+        }
 
         for (let i = 0; i < requests.length; i++) {
             const request = requests[i];
@@ -144,11 +191,19 @@ export const updateReplacementRequestStatus = async (req, res) => {
     try {
         const { id } = req.params;
         const { status, assignedTechnician } = req.body;
+        const scope = await getExecutiveScope(req.user);
 
         const request = await ReplacementRequest.findById(id);
 
         if (!request) {
             return res.status(404).json({ message: 'Replacement request not found' });
+        }
+
+        if (scope.isExecutive) {
+            const product = await Product.findById(request.product).select('distributor').lean();
+            if (!product || !scope.distributorIds.includes(product.distributor?.toString())) {
+                return res.status(403).json({ message: 'Access denied' });
+            }
         }
 
         if (assignedTechnician) {

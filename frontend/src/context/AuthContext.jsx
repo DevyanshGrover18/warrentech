@@ -40,19 +40,28 @@ export const AuthProvider = ({ children }) => {
     const isDistributorAuthenticated = isAuthenticated && user.role === 'distributor';
     const isDealerAuthenticated = isAuthenticated && user.role === 'dealer';
     const isTechnicianAuthenticated = isAuthenticated && user.role === 'technician';
+    const isExecutiveAuthenticated = isAuthenticated && user.role === 'executive';
 
     // Check if user has required privileges (support both `privileges` and `accessControl` keys)
     const _privs = user?.privileges || user?.accessControl || null;
     const hasPrivilege = (section, privilege) => {
-        if (!user || !_privs) return false;
-        return _privs[section]?.[privilege] || _privs[section]?.full || false;
+        if (!user || !_privs || !_privs[section]) return false;
+        const sectionPermissions = _privs[section];
+
+        if (sectionPermissions.full) return true;
+        
+        // If checking for view, return true if any permission is true
+        if (privilege === 'view') {
+            return sectionPermissions.view || sectionPermissions.add || sectionPermissions.modify || sectionPermissions.delete;
+        }
+        
+        return sectionPermissions[privilege];
     };
 
     const hasAnyPrivilege = (section) => {
-        if (!user || !_privs) return false;
+        if (!user || !_privs || !_privs[section]) return false;
         const perms = _privs[section];
-        if (!perms) return false;
-        return Boolean(perms.full || perms.add || perms.modify || perms.delete);
+        return Boolean(perms.full || perms.view || perms.add || perms.modify || perms.delete);
     };
 
     const hasFullManagementAccess = () => {
@@ -71,6 +80,7 @@ export const AuthProvider = ({ children }) => {
             isDistributorAuthenticated,
             isDealerAuthenticated,
             isTechnicianAuthenticated,
+            isExecutiveAuthenticated,
             login,
             logout,
             loading,

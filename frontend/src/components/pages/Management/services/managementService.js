@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { toast } from 'react-hot-toast';
+import { confirmDelete } from '../../../global/deleteConfirm';
 
 const CATEGORIES_API_URL = `${import.meta.env.VITE_API_URL}/api/categories`;
 const MODELS_API_URL = `${import.meta.env.VITE_API_URL}/api/models`;
@@ -38,26 +39,34 @@ export const updateCategory = async (categoryId, categoryData) => {
 };
 
 export const deleteCategory = async (categoryId) => {
-    if (window.confirm('Are you sure you want to delete this category?')) {
-        try {
-            await axios.delete(`${CATEGORIES_API_URL}/${categoryId}`);
-            toast.success('Category deleted successfully');
-        } catch (error) {
-            toast.error('Error deleting category');
-            throw error;
-        }
+    const confirmed = await confirmDelete({ entityLabel: 'category' });
+    if (!confirmed) return false;
+
+    try {
+        await axios.delete(`${CATEGORIES_API_URL}/${categoryId}`);
+        toast.success('Category deleted successfully');
+        return true;
+    } catch (error) {
+        toast.error('Error deleting category');
+        throw error;
     }
 };
 
 export const deleteMultipleCategories = async (categoryIds) => {
-    if (window.confirm(`Are you sure you want to delete ${categoryIds.length} selected categories?`)) {
-        try {
-            await axios.delete(CATEGORIES_API_URL, { data: { categoryIds } });
-            toast.success('Selected categories deleted successfully');
-        } catch (error) {
-            toast.error('Error deleting selected categories');
-            throw error;
-        }
+    const confirmed = await confirmDelete({
+        entityLabel: 'category',
+        entityLabelPlural: 'categories',
+        count: categoryIds.length,
+    });
+    if (!confirmed) return false;
+
+    try {
+        await axios.delete(CATEGORIES_API_URL, { data: { categoryIds } });
+        toast.success('Selected categories deleted successfully');
+        return true;
+    } catch (error) {
+        toast.error('Error deleting selected categories');
+        throw error;
     }
 };
 
@@ -105,26 +114,34 @@ export const updateModel = async (modelId, modelData) => {
 };
 
 export const deleteModel = async (modelId) => {
-    if (window.confirm('Are you sure you want to delete this model?')) {
-        try {
-            await axios.delete(`${MODELS_API_URL}/${modelId}`);
-            toast.success('Model deleted successfully');
-        } catch (error) {
-            toast.error('Error deleting model');
-            throw error;
-        }
+    const confirmed = await confirmDelete({ entityLabel: 'model' });
+    if (!confirmed) return false;
+
+    try {
+        await axios.delete(`${MODELS_API_URL}/${modelId}`);
+        toast.success('Model deleted successfully');
+        return true;
+    } catch (error) {
+        toast.error('Error deleting model');
+        throw error;
     }
 };
 
 export const deleteMultipleModels = async (modelIds) => {
-    if (window.confirm(`Are you sure you want to delete ${modelIds.length} selected models?`)) {
-        try {
-            await axios.delete(MODELS_API_URL, { data: { ids: modelIds } });
-            toast.success('Selected models deleted successfully');
-        } catch (error) {
-            toast.error('Error deleting selected models');
-            throw error;
-        }
+    const confirmed = await confirmDelete({
+        entityLabel: 'model',
+        entityLabelPlural: 'models',
+        count: modelIds.length,
+    });
+    if (!confirmed) return false;
+
+    try {
+        await axios.delete(MODELS_API_URL, { data: { ids: modelIds } });
+        toast.success('Selected models deleted successfully');
+        return true;
+    } catch (error) {
+        toast.error('Error deleting selected models');
+        throw error;
     }
 };
 

@@ -1,13 +1,19 @@
 import { useContext } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { LogOut, LayoutDashboard } from 'lucide-react';
+import { LogOut, LayoutDashboard, Briefcase } from 'lucide-react';
 import { AuthContext } from '../../context/AuthContext';
 
 const sidebarItems = [
     {
+        title: 'Dashboard',
+        path: '/technician/dashboard',
+        icon: LayoutDashboard,
+        color: 'blue',
+    },
+    {
         title: 'Requests',
         path: '/technician/requests',
-        icon: LayoutDashboard,
+        icon: Briefcase,
         color: 'blue',
     },
 ];

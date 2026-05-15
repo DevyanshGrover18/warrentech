@@ -26,18 +26,18 @@ const upload = multer({ storage: storage });
 // --- End Multer Configuration ---
 
 const isAdmin = (req, res, next) => {
-    if (req.user && req.user.role === 'admin') {
+    if (req.user && (req.user.role === 'admin' || req.user.role === 'executive')) {
         next();
     } else {
-        res.status(403).json({ message: 'Access denied. Admins only.' });
+        res.status(403).json({ message: 'Access denied.' });
     }
 };
 
 const isAdminOrTechnician = (req, res, next) => {
-    if (req.user && (req.user.role === 'admin' || req.user.role === 'technician')) {
+    if (req.user && (req.user.role === 'admin' || req.user.role === 'technician' || req.user.role === 'executive')) {
         next();
     } else {
-        res.status(403).json({ message: 'Access denied. Admins or Technicians only.' });
+        res.status(403).json({ message: 'Access denied.' });
     }
 };
 

@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { toast } from 'react-hot-toast';
+import { confirmDelete } from '../../../global/deleteConfirm';
 
 const API_URL = `${import.meta.env.VITE_API_URL}/api/factories`;
 
@@ -36,26 +37,34 @@ export const updateFactory = async (factoryId, factoryData) => {
 };
 
 export const deleteFactory = async (factoryId) => {
-    if (window.confirm('Are you sure you want to delete this factory?')) {
-        try {
-            await axios.delete(`${API_URL}/${factoryId}`);
-            toast.success('Factory deleted successfully');
-        } catch (error) {
-            toast.error(error.response?.data?.message || 'Error deleting factory');
-            throw error;
-        }
+    const confirmed = await confirmDelete({ entityLabel: 'factory' });
+    if (!confirmed) return false;
+
+    try {
+        await axios.delete(`${API_URL}/${factoryId}`);
+        toast.success('Factory deleted successfully');
+        return true;
+    } catch (error) {
+        toast.error(error.response?.data?.message || 'Error deleting factory');
+        throw error;
     }
 };
 
 export const deleteMultipleFactories = async (factoryIds) => {
-    if (window.confirm(`Are you sure you want to delete ${factoryIds.length} selected factories?`)) {
-        try {
-            await axios.delete(API_URL, { data: { factoryIds } });
-            toast.success('Selected factories deleted successfully');
-        } catch (error) {
-            toast.error(error.response?.data?.message || 'Error deleting selected factories');
-            throw error;
-        }
+    const confirmed = await confirmDelete({
+        entityLabel: 'factory',
+        entityLabelPlural: 'factories',
+        count: factoryIds.length,
+    });
+    if (!confirmed) return false;
+
+    try {
+        await axios.delete(API_URL, { data: { factoryIds } });
+        toast.success('Selected factories deleted successfully');
+        return true;
+    } catch (error) {
+        toast.error(error.response?.data?.message || 'Error deleting selected factories');
+        throw error;
     }
 };
 

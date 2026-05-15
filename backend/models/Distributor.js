@@ -72,7 +72,11 @@ const distributorSchema = new mongoose.Schema({
     dealers: [{
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Dealer'
-    }]
+    }],
+    executive: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Executive'
+    }
 }, {
     timestamps: true
 });

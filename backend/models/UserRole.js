@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 
 const permissionSchema = new mongoose.Schema({
+    view: { type: Boolean, default: false },
     add: { type: Boolean, default: false },
     modify: { type: Boolean, default: false },
     delete: { type: Boolean, default: false },
@@ -13,7 +14,12 @@ const accessControlSchema = new mongoose.Schema({
     orders: permissionSchema,
     products: permissionSchema,
     distributors: permissionSchema,
-    dealers: permissionSchema
+    dealers: permissionSchema,
+    sales: permissionSchema,
+    customers: permissionSchema,
+    replacement: permissionSchema,
+    technicians: permissionSchema,
+    notifications: permissionSchema
 });
 
 const userRoleSchema = new mongoose.Schema({
@@ -66,7 +72,15 @@ userRoleSchema.methods.hasPermission = function(section, permission) {
     if (!this.accessControl || !this.accessControl[section]) {
         return false;
     }
-    return this.accessControl[section].full || this.accessControl[section][permission];
+    const sectionPermissions = this.accessControl[section];
+    if (sectionPermissions.full) return true;
+    
+    // If checking for view, return true if any permission is true
+    if (permission === 'view') {
+        return sectionPermissions.view || sectionPermissions.add || sectionPermissions.modify || sectionPermissions.delete;
+    }
+    
+    return sectionPermissions[permission];
 };
 
 // Method to check if user has any access to a section
@@ -75,12 +89,13 @@ userRoleSchema.methods.hasAccessToSection = function(section) {
         return false;
     }
     const sectionPermissions = this.accessControl[section];
-    return sectionPermissions.full || sectionPermissions.add || sectionPermissions.modify || sectionPermissions.delete;
+    return sectionPermissions.full || sectionPermissions.view || sectionPermissions.add || sectionPermissions.modify || sectionPermissions.delete;
 };
 
 // Static method to create admin user
 userRoleSchema.statics.createAdminUser = async function(adminData) {
     const fullAccess = {
+        view: true,
         add: true,
         modify: true,
         delete: true,
@@ -93,7 +108,12 @@ userRoleSchema.statics.createAdminUser = async function(adminData) {
         orders: fullAccess,
         products: fullAccess,
         distributors: fullAccess,
-        dealers: fullAccess
+        dealers: fullAccess,
+        sales: fullAccess,
+        customers: fullAccess,
+        replacement: fullAccess,
+        technicians: fullAccess,
+        notifications: fullAccess
     };
 
     const admin = new this({

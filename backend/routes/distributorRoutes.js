@@ -9,7 +9,8 @@ import {
     updateDistributorStatus,
     getDistributorDealers,
     createDealerForDistributor,
-    updateDealerForDistributor
+    updateDealerForDistributor,
+    reassignDistributorExecutive
 } from '../controllers/distributorController.js';
 import { verifyToken, checkPermission, checkSectionAccess } from '../middleware/roleMiddleware.js';
 
@@ -35,6 +36,9 @@ router.get('/:id/products', verifyToken, getDistributorProducts);
 
 // @route   PATCH /api/distributors/:id/status
 router.patch('/:id/status', verifyToken, checkPermission('distributors', 'modify'), updateDistributorStatus);
+
+// @route   PATCH /api/distributors/:id/executive-assignment
+router.patch('/:id/executive-assignment', verifyToken, checkPermission('distributors', 'modify'), reassignDistributorExecutive);
 
 // @route   GET /api/distributors/:id/dealers
 router.get('/:id/dealers', verifyToken, getDistributorDealers);

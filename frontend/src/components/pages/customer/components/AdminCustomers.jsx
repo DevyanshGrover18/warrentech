@@ -8,6 +8,7 @@ import { CustomerFilters } from './CustomerFilters';
 import ExportToExcelButton from '../../../global/ExportToExcelButton';
 import ExportToPdfButton from '../../../global/ExportToPdfButton';
 import axios from 'axios';
+import { confirmDelete } from '../../../global/deleteConfirm';
 
 export default function Customers() {
   const [customers, setCustomers] = useState([]);
@@ -141,15 +142,21 @@ export default function Customers() {
   };
 
   const handleDeleteSelected = async () => {
-      if (window.confirm(`Are you sure you want to delete ${selectedCustomers.length} selected customers?`)) {
-          try {
-              await deleteCustomers(selectedCustomers);
-              toast.success('Selected customers deleted successfully');
-              fetchCustomers();
-              setSelectedCustomers([]);
-          } catch (error) {
-              toast.error('Failed to delete selected customers');
-          }
+      const confirmed = await confirmDelete({
+          entityLabel: 'customer',
+          entityLabelPlural: 'customers',
+          count: selectedCustomers.length,
+      });
+
+      if (!confirmed) return;
+
+      try {
+          await deleteCustomers(selectedCustomers);
+          toast.success('Selected customers deleted successfully');
+          fetchCustomers();
+          setSelectedCustomers([]);
+      } catch (error) {
+          toast.error('Failed to delete selected customers');
       }
   };
 

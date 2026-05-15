@@ -4,7 +4,7 @@ import { protect, authorize } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
 
-router.get('/', protect, authorize(['admin', 'customer' , 'technician']), getBillingConfig);
+router.get('/', protect, authorize(['admin', 'customer' , 'technician', 'executive']), getBillingConfig);
 router.put('/in-warranty', protect, authorize(['admin']), updateInWarrantyConfig);
 router.put('/out-of-warranty', protect, authorize(['admin']), updateOutOfWarrantyConfig);
 

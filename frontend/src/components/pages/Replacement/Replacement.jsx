@@ -1,13 +1,15 @@
-import { useEffect, useState } from 'react';
+import { useContext, useEffect, useState } from 'react';
 import axios from 'axios';
 import { toast } from 'react-hot-toast';
-import { RefreshCw, Check, X, Clock, UserCheck, CheckCircle, Paperclip, Eye, DollarSign, Loader, AlertTriangle } from 'lucide-react';
+import { RefreshCw, Check, X, Clock, UserCheck, CheckCircle, Eye, Loader, AlertTriangle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import AssignTechnicianModal from './AssignTechnicianModal';
 import RequestDetailsModal from './RequestDetailsModal';
 import WarrantyDetailsModal from '../customer/WarrantyDetailsModal.jsx';
+import { AuthContext } from '../../../context/AuthContext';
 
 export default function Replacement() {
+    const { user } = useContext(AuthContext);
     const [requests, setRequests] = useState([]);
     const [billingConfig, setBillingConfig] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -63,6 +65,11 @@ export default function Replacement() {
                 toast.error('Failed to update request status');
             }
         }
+    };
+
+    const handleOpenAssignModal = (request) => {
+        setSelectedRequest(request);
+        setIsModalOpen(true);
     };
 
     const handleAssignTechnician = async (id, technicianId) => {
@@ -221,7 +228,15 @@ export default function Replacement() {
                                                                 <button onClick={() => handleViewDetails(request)} className="text-gray-500 hover:text-indigo-600">
                                                                     <Eye className="h-5 w-5" />
                                                                 </button>
-                                                                {request.status === 'Pending' ? (
+                                                                {user?.role === 'executive' ? (
+                                                                    <button
+                                                                        onClick={() => handleOpenAssignModal(request)}
+                                                                        className="text-blue-600 hover:text-blue-800"
+                                                                        disabled={request.status === 'Completed' || request.status === 'Rejected'}
+                                                                    >
+                                                                        <UserCheck className="h-5 w-5" />
+                                                                    </button>
+                                                                ) : request.status === 'Pending' ? (
                                                                     <>
                                                                         <button
                                                                             onClick={() => handleStatusUpdate(request._id, 'Approved')}

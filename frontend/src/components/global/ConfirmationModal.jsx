@@ -20,7 +20,7 @@ export default function ConfirmationModal({
       <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md mx-auto">
         <div className="flex justify-between items-center mb-4">
           <h3 className="text-lg font-semibold text-gray-900 flex items-center">
-            <AlertTriangle className="h-6 w-6 text-yellow-500 mr-2" />
+            <AlertTriangle className="h-6 w-6 text-red-500 mr-2" />
             {title}
           </h3>
           {showCloseButton && (

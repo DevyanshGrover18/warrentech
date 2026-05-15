@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useProducts } from './hooks/useProducts';
-import ProductList from './components/ProductList';
+import InventoryManagementModal from './components/InventoryManagementModal';
 import DistributorSelectionModal from './components/DistributorSelectionModal';
 import axios from 'axios';
 import { toast } from 'react-hot-toast';
-import { Search, X, Box, Building, Package } from 'lucide-react';
+import { Search, Box, Building } from 'lucide-react';
 import { getFactories } from '../FactoryManagement/services/factoryService';
 import { getModels } from '../Management/services/managementService';
 import { FilterGroup, FilterItem, FilterSelector } from '../../global/FilterGroup';
@@ -50,33 +50,40 @@ export default function Products() {
     const [rangeErrorMessage, setRangeErrorMessage] = useState('');
     const [availableRange, setAvailableRange] = useState('');
 
-    const [boxTypeFilter, setBoxTypeFilter] = useState('');
+    const [modalFactoryFilter, setModalFactoryFilter] = useState('all');
+    const [boxTypeFilter, setBoxTypeFilter] = useState('all');
 
     // Outer pagination is for the model summary rows (modelGroups)
 
-    // Modal pagination for grouped products inside the model detail modal
-    const modalGroupedProducts = useMemo(() => {
-        let filtered = products.filter(g => g.model?._id === activeModelId);
-        
-        if (factoryFilter) {
-            filtered = filtered.filter(g => g.productsInBox.some(p => p.factory?._id === factoryFilter));
-        }
-        
-        filtered = filtered.filter(g => g.productsInBox.every(p => !p.distributor));
+    const getSerialCounter = (serialNumber) => {
+        if (!serialNumber) return 0;
+        const match = serialNumber.match(/(\d+)$/);
+        return match ? parseInt(match[1]) : 0;
+    };
 
-        if (boxTypeFilter) {
-            filtered = filtered.filter(g => g.productsInBox.length > 0 && g.productsInBox[0].unitsPerBox === parseInt(boxTypeFilter));
+    const modalProducts = useMemo(() => {
+        let filtered = products
+            .filter(group => group.model?._id === activeModelId)
+            .flatMap(group => group.productsInBox)
+            .filter(product => !product.distributor);
+
+        if (modalFactoryFilter !== 'all') {
+            filtered = filtered.filter(product => product.factory?._id === modalFactoryFilter);
         }
-        
-        // Sort by createdAt in descending order (latest to oldest)
-        return filtered.sort((a, b) => new Date(b.productsInBox[0].createdAt) - new Date(a.productsInBox[0].createdAt));
-    }, [products, activeModelId, factoryFilter, boxTypeFilter]);
-    const modalTotalPages = useMemo(() => Math.ceil(modalGroupedProducts.length / modalItemsPerPage) || 1, [modalGroupedProducts, modalItemsPerPage]);
+
+        if (boxTypeFilter !== 'all') {
+            filtered = filtered.filter(product => `${product.unitsPerBox}N` === boxTypeFilter);
+        }
+
+        return filtered.sort((a, b) => getSerialCounter(a.serialNumber) - getSerialCounter(b.serialNumber));
+    }, [products, activeModelId, modalFactoryFilter, boxTypeFilter]);
+
+    const modalTotalPages = useMemo(() => Math.ceil(modalProducts.length / modalItemsPerPage) || 1, [modalProducts, modalItemsPerPage]);
     const paginatedModalProducts = useMemo(() => {
         const indexOfLastItem = modalCurrentPage * modalItemsPerPage;
         const indexOfFirstItem = indexOfLastItem - modalItemsPerPage;
-        return modalGroupedProducts.slice(indexOfFirstItem, indexOfLastItem);
-    }, [modalGroupedProducts, modalCurrentPage, modalItemsPerPage]);
+        return modalProducts.slice(indexOfFirstItem, indexOfLastItem);
+    }, [modalProducts, modalCurrentPage, modalItemsPerPage]);
 
     const handleProductSelect = (productIds, isSelected) => {
         const ids = Array.isArray(productIds) ? productIds : [productIds];
@@ -94,6 +101,11 @@ export default function Products() {
         // Clear previous selection when opening model-specific view
         setSelectedProductIds([]);
         setActiveModelId(modelId);
+        setModalFactoryFilter('all');
+        setBoxTypeFilter('all');
+        setStartSerialNumber('');
+        setEndSerialNumber('');
+        setModalCurrentPage(1);
         setIsModelModalOpen(true);
     };
 
@@ -101,6 +113,10 @@ export default function Products() {
         setIsModelModalOpen(false);
         setActiveModelId(null);
         setSelectedProductIds([]);
+        setModalFactoryFilter('all');
+        setBoxTypeFilter('all');
+        setStartSerialNumber('');
+        setEndSerialNumber('');
     };
 
     const handleAssignProducts = async (distributorId) => {
@@ -120,12 +136,6 @@ export default function Products() {
         }
     };
 
-    const getSerialCounter = (serialNumber) => {
-        if (!serialNumber) return 0;
-        const match = serialNumber.match(/(\d+)$/);
-        return match ? parseInt(match[1]) : 0;
-    };
-
     const handleSelectRange = () => {
         if (!startSerialNumber || !endSerialNumber) {
             toast.error('Please enter both start and end serial numbers.');
@@ -139,7 +149,7 @@ export default function Products() {
         }
 
         // Validate against available (unassigned) products
-        const available = products.flatMap(group => group.productsInBox).filter(product => !product.distributor);
+        const available = modalProducts;
         const counters = available.map(i => getSerialCounter(i.serialNumber)).filter(n => n > 0);
         if (counters.length > 0) {
             const minCounter = Math.min(...counters);
@@ -155,10 +165,10 @@ export default function Products() {
             }
         }
 
-        const selectedProducts = products.flatMap(group => group.productsInBox)
+        const selectedProducts = modalProducts
             .filter(product => {
                 const itemCounter = getSerialCounter(product.serialNumber);
-                return itemCounter >= startCounter && itemCounter <= endCounter && !product.distributor;
+                return itemCounter >= startCounter && itemCounter <= endCounter;
             });
 
         if (selectedProducts.length === 0) {
@@ -183,7 +193,7 @@ export default function Products() {
         }
 
         // Validate against available (unassigned) products
-        const available = products.flatMap(group => group.productsInBox).filter(product => !product.distributor);
+        const available = modalProducts;
         const counters = available.map(i => getSerialCounter(i.serialNumber)).filter(n => n > 0);
         if (counters.length > 0) {
             const minCounter = Math.min(...counters);
@@ -199,7 +209,7 @@ export default function Products() {
             }
         }
 
-        const unselectedProductIds = products.flatMap(group => group.productsInBox)
+        const unselectedProductIds = modalProducts
             .filter(product => {
                 const itemCounter = getSerialCounter(product.serialNumber);
                 return itemCounter >= startCounter && itemCounter <= endCounter;
@@ -216,6 +226,11 @@ export default function Products() {
 
     const handleClearSelection = () => {
         setSelectedProductIds([]);
+        setModalFactoryFilter('all');
+        setBoxTypeFilter('all');
+        setStartSerialNumber('');
+        setEndSerialNumber('');
+        setModalCurrentPage(1);
     };
 
     // Build model-level groups from the flattened product list
@@ -238,6 +253,31 @@ export default function Products() {
         const indexOfFirstItem = indexOfLastItem - itemsPerPage;
         return modelGroups.slice(indexOfFirstItem, indexOfLastItem);
     }, [modelGroups, currentPage, itemsPerPage]);
+
+    const modalRows = useMemo(() => (
+        paginatedModalProducts.map(product => ({
+            id: product._id,
+            checked: selectedProductIds.includes(product._id),
+            model: product.model?.name || product.productName || 'N/A',
+            boxType: `${product.unitsPerBox || ''}N`,
+            serialNumber: product.serialNumber || 'N/A',
+            mrp: `${product.price} /- Each`,
+            factory: product.factory?.name || 'N/A',
+            distributor: product.distributor?.name || 'N/A',
+        }))
+    ), [paginatedModalProducts, selectedProductIds]);
+
+    const visibleModalProductIds = useMemo(
+        () => paginatedModalProducts.map(product => product._id),
+        [paginatedModalProducts],
+    );
+
+    const allVisibleModalRowsSelected = visibleModalProductIds.length > 0 &&
+        visibleModalProductIds.every(id => selectedProductIds.includes(id));
+
+    const handleToggleAllModalRows = (isSelected) => {
+        handleProductSelect(visibleModalProductIds, isSelected);
+    };
 
     return (
         <div className="p-4 lg:p-4 min-h-full">
@@ -307,7 +347,6 @@ export default function Products() {
                                     <tr>
                                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Model</th>
                                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">No. of Products</th>
-                                        {/* <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th> */}
                                     </tr>
                                 </thead>
                                 <tbody className="bg-white divide-y divide-gray-200">
@@ -323,21 +362,11 @@ export default function Products() {
                                                 {mg.count || 0} Total Products
                                             </button>
                                             </td>
-                                            {/* <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                                            <button
-                                                onClick={() => { setModalCurrentPage(1); openModelModal(mg.model?._id); }}
-                                                className="flex justify-center px-1 py-1 items-center text-sm rounded-full font-medium text-gray-700 bg-white hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-                                                title={`View ${mg.model?.name || 'Model'} details`}
-                                            >
-                                                <Eye className="h-4 w-4" />
-                                            </button>
-                                            </td> */}
                                         </tr>
                                     ))}
                                 </tbody>
                             </table>
                         </div>
-                        {/* Outer pagination controls for model summary */}
                         <div className="mt-4 flex items-center justify-between">
                             <div className="text-sm text-gray-700">Rows per page:
                                 <select
@@ -374,91 +403,49 @@ export default function Products() {
                     </div>
                 )}
 
-                {/* Model detail modal: shows the full product table (same layout as Products page) but filtered to the selected model */}
-                {isModelModalOpen && (
-                    <div className="fixed inset-0 z-60 flex items-center justify-center p-4">
-                        <div className="absolute inset-0 bg-black/40" onClick={closeModelModal}></div>
-                        <div className="bg-white rounded-lg shadow-lg z-70 w-full max-w-6xl mx-4 flex flex-col max-h-[90vh]">
-                            <div className="p-4">
-                                <div className="flex items-start justify-between">
-                                    <h4 className="text-lg font-semibold">Model: {models.find(m => m._id === activeModelId)?.name || 'Details'}</h4>
-                
-                                    <div className="flex items-center gap-2">
-                                        <button
-                                        onClick={openDistributorModal}
-                                        disabled={selectedProductIds.length === 0}
-                                        className={`px-4 py-2 rounded-md text-sm font-medium ${selectedProductIds.length > 0
-                                            ? 'bg-blue-600 text-white hover:bg-blue-700'
-                                            : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                                        }`}
-                                    >
-                                        Transfer to Distributor ({selectedProductIds.length})
-                                    </button>
-                                    <button onClick={closeModelModal} className="p-2 hover:bg-gray-100 rounded-full transition-colors" title="Close">
-                                            <X className="h-5 w-5 text-gray-500" />
-                                    </button>    
-                                    </div>
-                                </div>
-    
-                            </div>
-                            <div className="flex-1 min-h-0 px-6 overflow-y-auto">
-                                <ProductList
-                                    products={paginatedModalProducts}
-                                    loading={loading}
-                                    selectedProductIds={selectedProductIds}
-                                    onProductSelect={handleProductSelect}
-                                    startSerialNumber={startSerialNumber}
-                                    endSerialNumber={endSerialNumber}
-                                    onStartSerialChange={setStartSerialNumber}
-                                    onEndSerialChange={setEndSerialNumber}
-                                    onSelectRange={handleSelectRange}
-                                    onUnselectRange={handleUnselectRange}
-                                    onClearSelection={handleClearSelection}
-                                    factoryFilter={factoryFilter}
-                                    onFactoryFilterChange={setFactoryFilter}
-                                    factories={factories}
-                                    boxTypeFilter={boxTypeFilter}
-                                    onBoxTypeFilterChange={setBoxTypeFilter}
-                                />
-                            </div>
-                            {/* Modal pagination controls */}
-                            <div className="p-4 flex items-center justify-between">
-                                <div className="text-sm text-gray-700">Rows per page:
-                                    <select
-                                        className="ml-2 border border-gray-300 rounded px-2 py-1"
-                                        value={modalItemsPerPage}
-                                        onChange={(e) => { setModalItemsPerPage(Number(e.target.value)); setModalCurrentPage(1); }}
-                                    >
-                                        <option value="10">10</option>
-                                        <option value="25">25</option>
-                                        <option value="50">50</option>
-                                        <option value="100">100</option>
-                                    </select>
-                                </div>
-                                <div className="flex items-center space-x-2">
-                                    <span className="text-sm text-gray-700">
-                                        Showing {modalGroupedProducts.length > 0 ? (modalCurrentPage - 1) * modalItemsPerPage + 1 : 0} to {Math.min(modalCurrentPage * modalItemsPerPage, modalGroupedProducts.length)} of {modalGroupedProducts.length} boxes
-                                    </span>
-                                    <button
-                                        onClick={() => setModalCurrentPage(prev => Math.max(1, prev - 1))}
-                                        disabled={modalCurrentPage === 1}
-                                        className="px-3 py-1 text-sm border border-gray-300 rounded disabled:opacity-50"
-                                    >
-                                        Previous
-                                    </button>
-                                    <span className="text-sm text-gray-700">Page {modalCurrentPage} of {modalTotalPages}</span>
-                                    <button
-                                        onClick={() => setModalCurrentPage(prev => Math.min(modalTotalPages, prev + 1))}
-                                        disabled={modalCurrentPage === modalTotalPages}
-                                        className="px-3 py-1 text-sm border border-gray-300 rounded disabled:opacity-50"
-                                    >
-                                        Next
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                )}
+                <InventoryManagementModal
+                    isOpen={isModelModalOpen}
+                    onClose={closeModelModal}
+                    modelName={models.find(m => m._id === activeModelId)?.name || 'Details'}
+                    factoryFilter={modalFactoryFilter}
+                    onFactoryFilterChange={(value) => {
+                        setModalFactoryFilter(value);
+                        setModalCurrentPage(1);
+                    }}
+                    factories={factories}
+                    boxTypeFilter={boxTypeFilter}
+                    onBoxTypeFilterChange={(value) => {
+                        setBoxTypeFilter(value);
+                        setModalCurrentPage(1);
+                    }}
+                    boxTypeOptions={['All', '1N', '2N', '3N']}
+                    startSerial={startSerialNumber}
+                    onStartSerialChange={setStartSerialNumber}
+                    endSerial={endSerialNumber}
+                    onEndSerialChange={setEndSerialNumber}
+                    onSelectRange={handleSelectRange}
+                    onUnselectRange={handleUnselectRange}
+                    onClearAll={handleClearSelection}
+                    rowsPerPage={modalItemsPerPage}
+                    onRowsPerPageChange={(value) => {
+                        setModalItemsPerPage(value);
+                        setModalCurrentPage(1);
+                    }}
+                    currentPage={modalCurrentPage}
+                    totalPages={modalTotalPages}
+                    onPreviousPage={() => setModalCurrentPage(prev => Math.max(1, prev - 1))}
+                    onNextPage={() => setModalCurrentPage(prev => Math.min(modalTotalPages, prev + 1))}
+                    transferCount={selectedProductIds.length}
+                    transferDisabled={selectedProductIds.length === 0}
+                    onTransfer={openDistributorModal}
+                    rows={modalRows}
+                    allRowsSelected={allVisibleModalRowsSelected}
+                    onToggleAllRows={handleToggleAllModalRows}
+                    onRowToggle={(rowId, isChecked) => handleProductSelect(rowId, isChecked)}
+                    showingFrom={modalProducts.length > 0 ? (modalCurrentPage - 1) * modalItemsPerPage + 1 : 0}
+                    showingTo={Math.min(modalCurrentPage * modalItemsPerPage, modalProducts.length)}
+                    totalItems={modalProducts.length}
+                />
 
                 <DistributorSelectionModal
                     isOpen={isDistributorModalOpen}

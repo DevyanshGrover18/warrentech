@@ -11,6 +11,7 @@ import {
   ShoppingCart,
   ChevronDown,
   RefreshCw,
+  UserStar,
 } from 'lucide-react';
 import { AuthContext } from '../../context/AuthContext';
 import NotificationIcon from '../global/NotificationIcon';
@@ -27,6 +28,12 @@ const sidebarItems = [
     path: '/add-members',
     icon: Users,
     color: 'orange',
+  },
+  {
+    title: 'Executives',
+    path: '/executives',
+    icon: UserStar,
+    color: 'emerald',
   },
   {
     title: 'Management',
@@ -107,6 +114,7 @@ export function SideBar({ sidebarOpen, toggleSidebar, totalNotifications }) {
     '/distributors': 'distributors',
     '/dealers': 'dealers',
     '/customers': 'customers',
+    '/executives': 'management',
     '/add-members': 'management',
     '/sales': 'sales',
     '/replacement': 'replacement',

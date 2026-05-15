@@ -8,7 +8,7 @@ export default function PermissionEditor({ accessControl, sections, handleAccess
           <div key={section} className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
             <h4 className="text-md font-semibold text-gray-800 mb-3 capitalize">{section}</h4>
             <div className="space-y-2">
-              {['add', 'modify', 'delete', 'full'].map((permission) => (
+              {['view', 'add', 'modify', 'delete', 'full'].map((permission) => (
                 <label key={permission} className="flex items-center space-x-3">
                   <input
                     type="checkbox"

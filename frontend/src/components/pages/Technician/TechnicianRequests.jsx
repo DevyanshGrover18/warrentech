@@ -1,4 +1,5 @@
 import { useEffect, useState, useContext } from 'react';
+import { useLocation } from 'react-router-dom';
 import axios from 'axios';
 import { toast } from 'react-hot-toast';
 import { AuthContext } from '../../../context/AuthContext';
@@ -8,6 +9,7 @@ import DiagnoseModal from './DiagnoseModal';
 
 export default function TechnicianRequests() {
     const [requests, setRequests] = useState([]);
+    const [filteredRequests, setFilteredRequests] = useState([]);
     const [billingConfig, setBillingConfig] = useState(null);
     const [loading, setLoading] = useState(true);
     const { user } = useContext(AuthContext);
@@ -15,6 +17,10 @@ export default function TechnicianRequests() {
     const [selectedRequestForDetail, setSelectedRequestForDetail] = useState(null);
     const [isDiagnoseModalOpen, setIsDiagnoseModalOpen] = useState(false);
     const [selectedRequestForDiagnosis, setSelectedRequestForDiagnosis] = useState(null);
+    
+    const location = useLocation();
+    const queryParams = new URLSearchParams(location.search);
+    const statusFilter = queryParams.get('status');
 
     const fetchRequests = async () => {
         setLoading(true);
@@ -43,6 +49,14 @@ export default function TechnicianRequests() {
             fetchRequests();
         }
     }, [user]);
+
+    useEffect(() => {
+        if (statusFilter) {
+            setFilteredRequests(requests.filter(req => req.status === statusFilter));
+        } else {
+            setFilteredRequests(requests);
+        }
+    }, [requests, statusFilter]);
 
     const handleStatusChange = async (requestId, newStatus) => {
         const originalRequests = [...requests];
@@ -112,16 +126,30 @@ export default function TechnicianRequests() {
 
     return (
         <div className="p-4">
-            <h1 className="text-2xl font-semibold text-gray-800 mb-4">Assigned Service Requests</h1>
+            <div className="flex justify-between items-center mb-4">
+                <h1 className="text-2xl font-semibold text-gray-800">
+                    {statusFilter ? `${statusFilter} Service Requests` : 'Assigned Service Requests'}
+                </h1>
+                {statusFilter && (
+                    <button 
+                        onClick={() => window.history.back()} 
+                        className="text-blue-600 hover:text-blue-800 font-medium"
+                    >
+                        Back to All
+                    </button>
+                )}
+            </div>
             {loading ? (
                 <div className="text-center py-20">
                     <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mx-auto"></div>
                     <p className="mt-6 text-gray-500">Loading requests...</p>
                 </div>
-            ) : requests.length === 0 ? (
+            ) : filteredRequests.length === 0 ? (
                 <div className="text-center py-20">
                     <h3 className="mt-4 text-lg font-medium text-gray-900">No requests found</h3>
-                    <p className="mt-1 text-sm text-gray-500">You have no assigned requests at the moment.</p>
+                    <p className="mt-1 text-sm text-gray-500">
+                        {statusFilter ? `You have no requests with status "${statusFilter}".` : 'You have no assigned requests at the moment.'}
+                    </p>
                 </div>
             ) : (
                 <div className="overflow-x-auto bg-white rounded-lg shadow">
@@ -139,7 +167,7 @@ export default function TechnicianRequests() {
                             </tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-200">
-                            {requests.map((request) => (
+                            {filteredRequests.map((request) => (
                                 <tr key={request._id}>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{request.jcNumber || 'N/A'}</td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">

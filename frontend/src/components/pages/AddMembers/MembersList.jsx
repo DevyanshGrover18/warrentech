@@ -4,6 +4,8 @@ import { memberService } from './api';
 import { AuthContext } from '../../../context/AuthContext';
 import { Trash2, ChevronDown, ChevronUp } from 'lucide-react';
 import PermissionEditor from './PermissionEditor';
+import { confirmDelete } from '../../global/deleteConfirm';
+import { accessControlSections } from './accessControlConfig';
 
 export default function MembersList() {
   const [membersList, setMembersList] = useState([]);
@@ -30,14 +32,20 @@ export default function MembersList() {
   }, []);
 
   const handleDeleteMember = async (memberId) => {
-    if (window.confirm('Are you sure you want to permanently delete this member?')) {
-      try {
-        await memberService.deleteMember(memberId);
-        toast.success('Member deleted successfully');
-        fetchMembers(); // Refetch members to update the list
-      } catch (error) {
-        toast.error(error.message || 'Failed to delete member');
-      }
+    const member = membersList.find((item) => item._id === memberId);
+    const confirmed = await confirmDelete({
+      entityLabel: 'member',
+      itemName: member?.name,
+    });
+
+    if (!confirmed) return;
+
+    try {
+      await memberService.deleteMember(memberId);
+      toast.success('Member deleted successfully');
+      fetchMembers(); // Refetch members to update the list
+    } catch (error) {
+      toast.error(error.message || 'Failed to delete member');
     }
   };
 
@@ -45,22 +53,47 @@ export default function MembersList() {
     try {
       const memberIndex = membersList.findIndex(m => m._id === memberId);
       const member = membersList[memberIndex];
-      const newAccessControl = { ...member.accessControl };
+      
+      // Use a deep copy to avoid any issues with references
+      const newAccessControl = JSON.parse(JSON.stringify(member.accessControl || {}));
+
+      // Ensure the section exists with all required properties
+      const defaults = { view: false, add: false, modify: false, delete: false, full: false };
+      if (!newAccessControl[section]) {
+        newAccessControl[section] = { ...defaults };
+      }
+
+      const currentSection = { ...defaults, ...newAccessControl[section] };
 
       if (permission === 'full') {
-        const isFull = !newAccessControl[section].full;
+        const isFull = !currentSection.full;
         newAccessControl[section] = {
+          view: isFull,
           add: isFull,
           modify: isFull,
           delete: isFull,
           full: isFull,
         };
       } else {
+        const newPermissionState = !currentSection[permission];
         newAccessControl[section] = {
-          ...newAccessControl[section],
-          [permission]: !newAccessControl[section][permission],
+          ...currentSection,
+          [permission]: newPermissionState,
           full: false,
         };
+
+        // If any permission other than view is enabled, enable view
+        if (newPermissionState && permission !== 'view') {
+          newAccessControl[section].view = true;
+        }
+
+        // If view is disabled, disable all other permissions
+        if (!newPermissionState && permission === 'view') {
+          newAccessControl[section].add = false;
+          newAccessControl[section].modify = false;
+          newAccessControl[section].delete = false;
+          newAccessControl[section].full = false;
+        }
       }
 
       await memberService.updateMemberPrivileges(member._id, newAccessControl);
@@ -80,14 +113,7 @@ export default function MembersList() {
     }
   };
 
-  const sections = [
-    'management',
-    'factories',
-    'orders',
-    'products',
-    'distributors',
-    'dealers',
-  ];
+  const sections = accessControlSections;
 
   return (
     <div className="mt-10 bg-white shadow-lg rounded-xl p-6">

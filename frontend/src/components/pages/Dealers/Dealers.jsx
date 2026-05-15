@@ -11,6 +11,7 @@ import DealerProductGroupList from './components/DealerProductGroupList';
 import { DealerFilters } from './components/DealerFilters';
 import ExportToExcelButton from '../../global/ExportToExcelButton';
 import ExportToPdfButton from '../../global/ExportToPdfButton';
+import { confirmDelete } from '../../global/deleteConfirm';
 
 function Dealers() {
     const {
@@ -201,14 +202,20 @@ function Dealers() {
     };
 
     const handleDeleteSelected = async () => {
-        if (window.confirm(`Are you sure you want to delete ${selectedDealers.length} selected dealers?`)) {
-            try {
-                await axios.delete(`${import.meta.env.VITE_API_URL}/api/dealers`, { data: { dealerIds: selectedDealers } });
-                window.location.reload();
-                toast.success('Selected dealers deleted successfully');
-            } catch (error) {
-                toast.error(error.response?.data?.message || 'Error deleting dealers');
-            }
+        const confirmed = await confirmDelete({
+            entityLabel: 'dealer',
+            entityLabelPlural: 'dealers',
+            count: selectedDealers.length,
+        });
+
+        if (!confirmed) return;
+
+        try {
+            await axios.delete(`${import.meta.env.VITE_API_URL}/api/dealers`, { data: { dealerIds: selectedDealers } });
+            window.location.reload();
+            toast.success('Selected dealers deleted successfully');
+        } catch (error) {
+            toast.error(error.response?.data?.message || 'Error deleting dealers');
         }
     };
 

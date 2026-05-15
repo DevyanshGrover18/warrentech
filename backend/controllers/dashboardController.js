@@ -1,10 +1,37 @@
 import Factory from '../models/Factory.js';
 import Order, { OrderItem } from '../models/Order.js';
 // import Product from '../models/Product.js';
+import mongoose from 'mongoose';
 import Dealer from '../models/Dealer.js';
 import Distributor from '../models/Distributor.js';
 import Model from '../models/Model.js';
 import Sale from '../models/Sale.js';
+
+import ReplacementRequest from '../models/ReplacementRequest.js';
+import Product from '../models/Product.js';
+import { getExecutiveScope, getCustomerIdsForExecutiveScope, getDealerIdsForExecutiveScope } from '../utils/executiveScope.js';
+
+export const getTechnicianDashboardStats = async (req, res) => {
+    try {
+        const technicianId = req.user.id;
+
+        const [total, assigned, inProgress, completed] = await Promise.all([
+            ReplacementRequest.countDocuments({ assignedTechnician: technicianId }),
+            ReplacementRequest.countDocuments({ assignedTechnician: technicianId, status: 'Assigned' }),
+            ReplacementRequest.countDocuments({ assignedTechnician: technicianId, status: 'In Progress' }),
+            ReplacementRequest.countDocuments({ assignedTechnician: technicianId, status: 'Completed' })
+        ]);
+
+        res.json({
+            total,
+            assigned,
+            inProgress,
+            completed
+        });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
 
 export const getOrderStats = async (req, res) => {
     try {
@@ -96,6 +123,62 @@ export const getMonthlySalesData = async (req, res) => {
             { $sort: { _id: 1 } }
         ]);
         res.json(salesData);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+export const getExecutiveDashboardStats = async (req, res) => {
+    try {
+        const scope = await getExecutiveScope(req.user);
+
+        if (!scope.isExecutive) {
+            return res.status(403).json({ message: 'Access denied.' });
+        }
+
+        const distributorIds = scope.distributorIds;
+
+        if (distributorIds.length === 0) {
+            return res.json({
+                products: 0,
+                distributors: 0,
+                dealers: 0,
+                customers: 0,
+                replacementRequests: 0,
+            });
+        }
+
+        const [products, distributors, dealerIds, customerIds, replacementRequests] = await Promise.all([
+            Product.countDocuments({ distributor: { $in: distributorIds } }),
+            Distributor.countDocuments({ _id: { $in: distributorIds } }),
+            getDealerIdsForExecutiveScope(req.user),
+            getCustomerIdsForExecutiveScope(req.user),
+            ReplacementRequest.aggregate([
+                {
+                    $lookup: {
+                        from: 'products',
+                        localField: 'product',
+                        foreignField: '_id',
+                        as: 'productInfo'
+                    }
+                },
+                { $unwind: '$productInfo' },
+                {
+                    $match: {
+                        'productInfo.distributor': { $in: distributorIds.map(id => new mongoose.Types.ObjectId(id)) }
+                    }
+                },
+                { $count: 'count' }
+            ]),
+        ]);
+
+        res.json({
+            products,
+            distributors,
+            dealers: dealerIds.length,
+            customers: customerIds.length,
+            replacementRequests: replacementRequests[0]?.count || 0,
+        });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }

@@ -3,6 +3,7 @@ import Sale from '../models/Sale.js';
 import Product from '../models/Product.js';
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
+import { getCustomerIdsForExecutiveScope } from '../utils/executiveScope.js';
 
 // POST /api/customers
 export const createCustomer = async (req, res) => {
@@ -40,7 +41,14 @@ export const createCustomer = async (req, res) => {
 // GET /api/customers
 export const getCustomers = async (req, res) => {
   try {
+    const executiveCustomerIds = req.user?.role === 'executive'
+      ? await getCustomerIdsForExecutiveScope(req.user)
+      : null;
+
     const customers = await Customer.aggregate([
+      ...(executiveCustomerIds ? [{
+        $match: { _id: { $in: executiveCustomerIds.map(id => new mongoose.Types.ObjectId(id)) } }
+      }] : []),
       {
         $lookup: {
           from: 'sales',
@@ -90,6 +98,13 @@ export const getCustomers = async (req, res) => {
 export const getCustomerPurchases = async (req, res) => {
   try {
     const customerId = req.params.id;
+    const executiveCustomerIds = req.user?.role === 'executive'
+      ? await getCustomerIdsForExecutiveScope(req.user)
+      : null;
+
+    if (executiveCustomerIds && !executiveCustomerIds.includes(customerId.toString())) {
+      return res.status(403).json({ message: 'Access denied' });
+    }
 
     const customer = await Customer.findById(customerId).lean();
     if (!customer) return res.status(404).json({ message: 'Customer not found' });

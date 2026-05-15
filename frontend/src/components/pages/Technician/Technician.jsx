@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import axios from 'axios';
 import { toast } from 'react-hot-toast';
+import { confirmDelete } from '../../global/deleteConfirm';
 import { Users, Plus, Edit, Trash2, Box } from 'lucide-react';
 import AssignedRequestsModal from './AssignedRequestsModal';
 import { TechnicianFilters } from './components/TechnicianFilters';
@@ -211,17 +212,23 @@ export default function Technicians() {
     };
 
     const handleDeleteTechnician = async (id) => {
-        if (window.confirm('Are you sure you want to delete this technician?')) {
-            try {
-                const token = localStorage.getItem('token');
-                await axios.delete(`${import.meta.env.VITE_API_URL}/api/technicians/${id}`, {
-                    headers: { Authorization: `Bearer ${token}` },
-                });
-                toast.success('Technician deleted successfully');
-                fetchTechnicians();
-            } catch (error) {
-                toast.error('Failed to delete technician');
-            }
+        const technician = technicians.find(item => item._id === id);
+        const confirmed = await confirmDelete({
+            entityLabel: 'technician',
+            itemName: technician?.name,
+        });
+
+        if (!confirmed) return;
+
+        try {
+            const token = localStorage.getItem('token');
+            await axios.delete(`${import.meta.env.VITE_API_URL}/api/technicians/${id}`, {
+                headers: { Authorization: `Bearer ${token}` },
+            });
+            toast.success('Technician deleted successfully');
+            fetchTechnicians();
+        } catch (error) {
+            toast.error('Failed to delete technician');
         }
     };
 
@@ -245,19 +252,25 @@ export default function Technicians() {
     };
 
     const handleDeleteSelected = async () => {
-        if (window.confirm(`Are you sure you want to delete ${selectedTechnicians.length} selected technicians?`)) {
-            try {
-                const token = localStorage.getItem('token');
-                await axios.delete(`${import.meta.env.VITE_API_URL}/api/technicians`, {
-                    headers: { Authorization: `Bearer ${token}` },
-                    data: { ids: selectedTechnicians },
-                });
-                toast.success('Selected technicians deleted successfully');
-                fetchTechnicians();
-                setSelectedTechnicians([]);
-            } catch (error) {
-                toast.error('Failed to delete selected technicians');
-            }
+        const confirmed = await confirmDelete({
+            entityLabel: 'technician',
+            entityLabelPlural: 'technicians',
+            count: selectedTechnicians.length,
+        });
+
+        if (!confirmed) return;
+
+        try {
+            const token = localStorage.getItem('token');
+            await axios.delete(`${import.meta.env.VITE_API_URL}/api/technicians`, {
+                headers: { Authorization: `Bearer ${token}` },
+                data: { ids: selectedTechnicians },
+            });
+            toast.success('Selected technicians deleted successfully');
+            fetchTechnicians();
+            setSelectedTechnicians([]);
+        } catch (error) {
+            toast.error('Failed to delete selected technicians');
         }
     };
 

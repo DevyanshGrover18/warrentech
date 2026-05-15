@@ -13,10 +13,10 @@ import { verifyToken } from '../middleware/roleMiddleware.js';
 const router = express.Router();
 
 const isAdmin = (req, res, next) => {
-    if (req.user && req.user.role === 'admin') {
+    if (req.user && (req.user.role === 'admin' || req.user.role === 'executive')) {
         next();
     } else {
-        res.status(403).json({ message: 'Access denied. Admins only.' });
+        res.status(403).json({ message: 'Access denied.' });
     }
 };
 

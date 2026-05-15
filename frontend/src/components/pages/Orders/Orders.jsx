@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { toast } from 'react-hot-toast';
 import ErrorBoundary from '../../global/ErrorBoundary';
 import ConfirmationModal from '../../global/ConfirmationModal';
+import { confirmDelete } from '../../global/deleteConfirm';
 import { useOrders } from './hooks/useOrders';
 import { useOrderForm } from './hooks/useOrderForm';
 import { OrderFilters } from './components/orderFilters';
@@ -286,6 +287,14 @@ function Orders() {
 
   const handleDeleteSelected = async () => {
       if (!selectedOrders.length) return;
+
+      const confirmed = await confirmDelete({
+          entityLabel: 'order',
+          entityLabelPlural: 'orders',
+          count: selectedOrders.length,
+      });
+
+      if (!confirmed) return;
       
       try {
           await deleteMultipleOrders(selectedOrders);

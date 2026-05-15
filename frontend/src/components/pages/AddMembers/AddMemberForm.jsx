@@ -2,6 +2,10 @@ import React, { useState } from 'react';
 import { Eye, EyeOff } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { memberService } from './api';
+import {
+  accessControlSections,
+  createEmptyAccessControl,
+} from './accessControlConfig';
 
 export default function AddMemberForm() {
   const [activeTab, setActiveTab] = useState('basicDetails');
@@ -11,14 +15,7 @@ export default function AddMemberForm() {
     username: '',
     password: '',
   });
-  const [accessControl, setAccessControl] = useState({
-    management: { add: false, modify: false, delete: false, full: false },
-    factories: { add: false, modify: false, delete: false, full: false },
-    orders: { add: false, modify: false, delete: false, full: false },
-    products: { add: false, modify: false, delete: false, full: false },
-    distributors: { add: false, modify: false, delete: false, full: false },
-    dealers: { add: false, modify: false, delete: false, full: false },
-  });
+  const [accessControl, setAccessControl] = useState(createEmptyAccessControl());
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -30,20 +27,39 @@ export default function AddMemberForm() {
   const handleAccessControlChange = (section, permission) => {
     setAccessControl((prevControl) => {
       const newControl = { ...prevControl };
+      
+      const defaults = { view: false, add: false, modify: false, delete: false, full: false };
+      const currentSection = { ...defaults, ...(newControl[section] || {}) };
+
       if (permission === 'full') {
-        const isFull = !newControl[section].full;
+        const isFull = !currentSection.full;
         newControl[section] = {
+          view: isFull,
           add: isFull,
           modify: isFull,
           delete: isFull,
           full: isFull,
         };
       } else {
+        const newPermissionState = !currentSection[permission];
         newControl[section] = {
-          ...newControl[section],
-          [permission]: !newControl[section][permission],
-          full: false,
+          ...currentSection,
+          [permission]: newPermissionState,
+          full: false, // Toggling individual permission removes full control
         };
+
+        // If any permission other than view is enabled, enable view
+        if (newPermissionState && permission !== 'view') {
+          newControl[section].view = true;
+        }
+
+        // If view is disabled, disable all other permissions
+        if (!newPermissionState && permission === 'view') {
+          newControl[section].add = false;
+          newControl[section].modify = false;
+          newControl[section].delete = false;
+          newControl[section].full = false;
+        }
       }
       return newControl;
     });
@@ -81,14 +97,7 @@ export default function AddMemberForm() {
         username: '',
         password: '',
       });
-      setAccessControl({
-        management: { add: false, modify: false, delete: false, full: false },
-        factories: { add: false, modify: false, delete: false, full: false },
-        orders: { add: false, modify: false, delete: false, full: false },
-        products: { add: false, modify: false, delete: false, full: false },
-        distributors: { add: false, modify: false, delete: false, full: false },
-        dealers: { add: false, modify: false, delete: false, full: false },
-      });
+      setAccessControl(createEmptyAccessControl());
       setActiveTab('basicDetails');
       toast.success('Member added successfully!');
     } catch (error) {
@@ -98,14 +107,7 @@ export default function AddMemberForm() {
     }
   };
 
-  const sections = [
-    'management',
-    'factories',
-    'orders',
-    'products',
-    'distributors',
-    'dealers',
-  ];
+  const sections = accessControlSections;
 
   const tabClasses = (tabName) =>
     `py-2 px-4 text-sm font-medium rounded-t-lg focus:outline-none transition-colors duration-200 ${
@@ -224,6 +226,9 @@ export default function AddMemberForm() {
                     Modules
                   </th>
                   <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                    View
+                  </th>
+                  <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">
                     Add
                   </th>
                   <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">
@@ -243,7 +248,7 @@ export default function AddMemberForm() {
                     <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">
                       {section.charAt(0).toUpperCase() + section.slice(1)}
                     </td>
-                    {['add', 'modify', 'delete', 'full'].map((permission) => (
+                    {['view', 'add', 'modify', 'delete', 'full'].map((permission) => (
                       <td key={permission} className="px-4 py-3 whitespace-nowrap text-center text-sm text-gray-500">
                         <input
                           type="checkbox"
