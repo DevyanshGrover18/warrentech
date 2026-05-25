@@ -56,6 +56,9 @@ import ExecutiveDistributors from "./components/pages/Executive/Distributors.jsx
 import ExecutiveDealers from "./components/pages/Executive/Dealers.jsx";
 import ExecutiveCustomers from "./components/pages/Executive/Customers.jsx";
 import Executives from "./components/pages/Management/Executives.jsx";
+import Incentives from "./components/pages/Incentives/Incentives.jsx";
+import Wallets from "./components/pages/Wallets/Wallets.jsx";
+import MyWallet from "./components/pages/Wallets/MyWallet.jsx";
 
 const AdminProtectedRoute = ({ children }) => {
   const { isAuthenticated, loading, isAdmin } = useContext(AuthContext);
@@ -115,6 +118,7 @@ const App = () => {
               path="customer-sales"
               element={<DistributorCustomerSales />}
             />
+            <Route path="wallet" element={<MyWallet />} />
           </Route>
 
           <Route
@@ -144,6 +148,7 @@ const App = () => {
             <Route path="dashboard" element={<DealerDashboard />} />
             <Route path="products" element={<DealerProducts />} />
             <Route path="sales" element={<DealerSales />} />
+            <Route path="wallet" element={<MyWallet />} />
           </Route>
 
           <Route
@@ -220,6 +225,22 @@ const App = () => {
               element={
                 <ProtectedSection section="sales">
                   <Sales />
+                </ProtectedSection>
+              }
+            />
+            <Route
+              path="incentives"
+              element={
+                <ProtectedSection section="sales">
+                  <Incentives />
+                </ProtectedSection>
+              }
+            />
+            <Route
+              path="wallets"
+              element={
+                <ProtectedSection section="sales">
+                  <Wallets />
                 </ProtectedSection>
               }
             />

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useProducts } from './hooks/useProducts';
 import InventoryManagementModal from './components/InventoryManagementModal';
 import DistributorSelectionModal from './components/DistributorSelectionModal';
+import EditProductModal from './components/EditProductModal';
 import axios from 'axios';
 import { toast } from 'react-hot-toast';
 import { Search, Box, Building } from 'lucide-react';
@@ -38,6 +39,8 @@ export default function Products() {
     // Modal for showing products of a particular model
     const [isModelModalOpen, setIsModelModalOpen] = useState(false);
     const [activeModelId, setActiveModelId] = useState(null);
+    const [editingProduct, setEditingProduct] = useState(null);
+    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [currentPage, setCurrentPage] = useState(1);
     const [itemsPerPage, setItemsPerPage] = useState(10);
     // Modal pagination (for model detail modal)
@@ -96,6 +99,15 @@ export default function Products() {
 
     const openDistributorModal = () => setIsDistributorModalOpen(true);
     const closeDistributorModal = () => setIsDistributorModalOpen(false);
+
+    const handleEditProduct = (productId) => {
+        // Find the product in modalProducts
+        const product = modalProducts.find(p => p._id === productId);
+        if (product) {
+            setEditingProduct(product);
+            setIsEditModalOpen(true);
+        }
+    };
 
     const openModelModal = (modelId) => {
         // Clear previous selection when opening model-specific view
@@ -442,6 +454,7 @@ export default function Products() {
                     allRowsSelected={allVisibleModalRowsSelected}
                     onToggleAllRows={handleToggleAllModalRows}
                     onRowToggle={(rowId, isChecked) => handleProductSelect(rowId, isChecked)}
+                    onEdit={handleEditProduct}
                     showingFrom={modalProducts.length > 0 ? (modalCurrentPage - 1) * modalItemsPerPage + 1 : 0}
                     showingTo={Math.min(modalCurrentPage * modalItemsPerPage, modalProducts.length)}
                     totalItems={modalProducts.length}
@@ -451,6 +464,12 @@ export default function Products() {
                     isOpen={isDistributorModalOpen}
                     onClose={closeDistributorModal}
                     onAssign={handleAssignProducts}
+                />
+                <EditProductModal
+                    isOpen={isEditModalOpen}
+                    onClose={() => setIsEditModalOpen(false)}
+                    product={editingProduct}
+                    onUpdate={fetchProducts}
                 />
                 {rangeErrorModalOpen && (
                     <div className="fixed inset-0 z-60 flex items-center justify-center p-4">

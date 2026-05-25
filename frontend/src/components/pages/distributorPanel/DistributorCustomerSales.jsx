@@ -1,4 +1,4 @@
-import { ShoppingCart, QrCode, User, Phone, Calendar } from 'lucide-react';
+import { ShoppingCart, QrCode, User, Phone, Calendar, Edit } from 'lucide-react';
 import { useState, useEffect, useContext } from 'react';
 import { AuthContext } from '../../../context/AuthContext';
 import { distributorSalesService } from '../../../services/distributorSalesService';
@@ -6,6 +6,8 @@ import { toast } from 'react-hot-toast';
 import SellQRScannerModal from '../../global/SellQRScannerModal';
 import SaleModal from '../Dealers/components/SaleModal';
 import { createSale } from '../Dealers/services/dealerSalesService';
+import EditSaleModal from '../Dealers/components/EditSaleModal';
+import { updateSale } from '../Dealers/services/dealerSalesService';
 
 export default function DistributorCustomerSales() {
     const { user } = useContext(AuthContext);
@@ -16,6 +18,9 @@ export default function DistributorCustomerSales() {
     const [scannedProduct, setScannedProduct] = useState(null);
     const [currentPage, setCurrentPage] = useState(1);
     const [itemsPerPage, setItemsPerPage] = useState(10);
+    const [selectedSale, setSelectedSale] = useState(null);
+    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+    const [billingConfig, setBillingConfig] = useState(null);
 
     const fetchSales = async () => {
         if (!user || !user.distributor) {
@@ -23,14 +28,29 @@ export default function DistributorCustomerSales() {
             return;
         }
         try {
-            const response = await distributorSalesService.getCustomerSales(user.distributor._id);
-            setSales(response.data);
+            const [salesResponse, configResponse] = await Promise.all([
+                distributorSalesService.getCustomerSales(user.distributor._id),
+                axios.get(`${import.meta.env.VITE_API_URL}/api/billing-config`),
+            ]);
+            setSales(salesResponse.data);
+            setBillingConfig(configResponse.data);
         } catch (error) {
-            toast.error('Error fetching customer sales');
-            console.error('Error fetching customer sales:', error);
+            toast.error('Error fetching data');
+            console.error('Error fetching data:', error);
         } finally {
             setLoading(false);
         }
+    };
+
+    const isEditable = (sale) => {
+        if (!billingConfig) return true;
+        const saleDate = new Date(sale.soldAt || sale.createdAt);
+        const now = new Date();
+        let deadlineMs = (billingConfig.saleEditDeadlineValue || 24) * 60 * 60 * 1000;
+        if (billingConfig.saleEditDeadlineUnit === 'days') {
+            deadlineMs = (billingConfig.saleEditDeadlineValue || 1) * 24 * 60 * 60 * 1000;
+        }
+        return (now - saleDate) <= deadlineMs;
     };
 
     useEffect(() => {
@@ -71,6 +91,25 @@ export default function DistributorCustomerSales() {
         } catch (error) {
             toast.error('Error selling product');
             console.error('Error selling product:', error);
+        }
+    };
+
+    const handleEdit = (sale) => {
+        setSelectedSale(sale);
+        setIsEditModalOpen(true);
+    };
+
+    const handleSave = async (updatedData) => {
+        if (!selectedSale) return;
+
+        try {
+            await updateSale(selectedSale._id, updatedData);
+            toast.success('Sale updated successfully');
+            setIsEditModalOpen(false);
+            setSelectedSale(null);
+            fetchSales();
+        } catch (error) {
+            toast.error(error.response?.data?.message || 'Error updating sale');
         }
     };
 
@@ -116,7 +155,7 @@ export default function DistributorCustomerSales() {
                             <table className="min-w-full divide-y divide-gray-200 text-sm">
                                 <thead className="bg-gray-50">
                                     <tr>
-                                        {['Product Name', 'Serial Number', 'Customer Name', 'Customer Email', 'Customer Phone', 'Plumber Name', 'Sold At'].map((head) => (
+                                        {['Product Name', 'Serial Number', 'Customer Name', 'Customer Email', 'Customer Phone', 'Plumber Name', 'Sold At', 'Incentive', 'Actions'].map((head) => (
                                             <th key={head} className="px-8 py-4 text-left text-xs font-semibold text-gray-500 uppercase">
                                                 {head}
                                             </th>
@@ -134,6 +173,14 @@ export default function DistributorCustomerSales() {
                                                 <td className="px-8 py-5 whitespace-nowrap text-sm flex items-center"><Phone className="h-4 w-4 mr-2 text-gray-400" />{sale.customerPhone}</td>
                                                 <td className="px-8 py-5 whitespace-nowrap text-sm">{sale.plumberName || '-'}</td>
                                                 <td className="px-8 py-5 whitespace-nowrap text-sm flex items-center"><Calendar className="h-4 w-4 mr-2 text-gray-400" />{new Date(sale.soldAt).toLocaleDateString()}</td>
+                                                <td className="px-8 py-5 whitespace-nowrap text-sm capitalize">{sale.incentiveStatus?.replaceAll('_', ' ') || '-'}</td>
+                                                <td className="px-8 py-5 whitespace-nowrap text-sm">
+                                                    {isEditable(sale) && (
+                                                        <button onClick={() => handleEdit(sale)} className="text-blue-600 hover:text-blue-900">
+                                                            <Edit className="h-5 w-5" />
+                                                        </button>
+                                                    )}
+                                                </td>
                                             </tr>
                                     ))}
                                 </tbody>
@@ -198,6 +245,15 @@ export default function DistributorCustomerSales() {
                     onClose={() => setShowSaleModal(false)}
                     group={scannedProduct}
                     onSale={handleSale}
+                />
+            )}
+
+            {selectedSale && (
+                <EditSaleModal
+                    isOpen={isEditModalOpen}
+                    onClose={() => setIsEditModalOpen(false)}
+                    sale={selectedSale}
+                    onSave={handleSave}
                 />
             )}
         </div>

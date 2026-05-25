@@ -5,13 +5,13 @@ import {
   Building,
   Package,
   Users,
-  Truck,
   LayoutDashboard,
   Settings,
   ShoppingCart,
   ChevronDown,
   RefreshCw,
-  UserStar,
+  IndianRupee,
+  Wallet,
 } from 'lucide-react';
 import { AuthContext } from '../../context/AuthContext';
 import NotificationIcon from '../global/NotificationIcon';
@@ -25,15 +25,30 @@ const sidebarItems = [
   },
   {
     title: 'Add Members',
-    path: '/add-members',
     icon: Users,
     color: 'orange',
-  },
-  {
-    title: 'Executives',
-    path: '/executives',
-    icon: UserStar,
-    color: 'emerald',
+    children: [
+      {
+        title: 'Staff',
+        path: '/add-members',
+      },
+      {
+        title: 'Executives',
+        path: '/executives',
+      },
+      {
+        title: 'Distributors',
+        path: '/distributors',
+      },
+      {
+        title: 'Dealers',
+        path: '/dealers',
+      },
+      {
+        title: 'Technicians',
+        path: '/technicians',
+      },
+    ],
   },
   {
     title: 'Management',
@@ -69,16 +84,16 @@ const sidebarItems = [
     color: 'green',
   },
   {
-    title: 'Distributors',
-    path: '/distributors',
-    icon: Users,
-    color: 'purple',
+    title: 'Incentives',
+    path: '/incentives',
+    icon: IndianRupee,
+    color: 'emerald',
   },
   {
-    title: 'Dealers',
-    path: '/dealers',
-    icon: Truck,
-    color: 'red',
+    title: 'Wallets',
+    path: '/wallets',
+    icon: Wallet,
+    color: 'lime',
   },
   {
     title: 'Customers',
@@ -92,16 +107,10 @@ const sidebarItems = [
     icon: RefreshCw,
     color: 'cyan',
   },
-  {
-    title: 'Technicians',
-    path: '/technicians',
-    icon: Users,
-    color: 'pink',
-  },
 ];
 
 export function SideBar({ sidebarOpen, toggleSidebar, totalNotifications }) {
-  const [factoryDropdownOpen, setFactoryDropdownOpen] = useState(false);
+  const [openDropdowns, setOpenDropdowns] = useState({});
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout, hasPrivilege, isAdmin } = useContext(AuthContext);
@@ -117,6 +126,8 @@ export function SideBar({ sidebarOpen, toggleSidebar, totalNotifications }) {
     '/executives': 'management',
     '/add-members': 'management',
     '/sales': 'sales',
+    '/incentives': 'sales',
+    '/wallets': 'sales',
     '/replacement': 'replacement',
     '/technicians': 'technicians',
   };
@@ -134,12 +145,29 @@ export function SideBar({ sidebarOpen, toggleSidebar, totalNotifications }) {
 
   useEffect(() => {
     if (!sidebarOpen) {
-      setFactoryDropdownOpen(false);
+      setOpenDropdowns({});
     }
   }, [sidebarOpen]);
 
   const isActive = (path) => location.pathname === path;
   const isChildActive = (children) => children.some((child) => isActive(child.path));
+  const isDropdownOpen = (title) => !!openDropdowns[title];
+
+  const toggleDropdown = (title) => {
+    setOpenDropdowns((prev) => ({
+      ...prev,
+      [title]: !prev[title],
+    }));
+  };
+
+  const canAccessChild = (child) => {
+    if (child.path === '/add-members' || child.path === '/executives') {
+      return isAdmin;
+    }
+
+    const section = pathToSection[child.path] || null;
+    return canAccessSection(section);
+  };
 
   const handleLogout = () => {
     logout();
@@ -158,7 +186,6 @@ export function SideBar({ sidebarOpen, toggleSidebar, totalNotifications }) {
           className="h-full flex flex-col px-4 pb-4 overflow-y-auto"
           style={{ background: 'var(--sidebar-bg)' }}
         >
-          {/* Sidebar Header */}
           <div
             className={`flex items-center h-20 ${
               sidebarOpen ? 'justify-between px-2' : 'justify-center'
@@ -183,24 +210,24 @@ export function SideBar({ sidebarOpen, toggleSidebar, totalNotifications }) {
                 stroke="currentColor"
                 viewBox="0 0 24 24"
               >
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M4 6h16M4 12h16M4 18h16"
+                />
               </svg>
             </button>
           </div>
 
-          {/* Sidebar Items */}
           {sidebarOpen ? (
             <ul className="mt-1 space-y-1 font-bold">
               {sidebarItems
                 .filter((item) => {
                   if (item.path === '/') return true;
                   if (item.children) {
-                    return item.children.some((child) => {
-                      const section = pathToSection[child.path] || null;
-                      return canAccessSection(section);
-                    });
+                    return item.children.some((child) => canAccessChild(child));
                   }
-                  if (item.path === '/add-members') return isAdmin;
                   const section = pathToSection[item.path] || null;
                   return canAccessSection(section);
                 })
@@ -208,11 +235,13 @@ export function SideBar({ sidebarOpen, toggleSidebar, totalNotifications }) {
                   const Icon = item.icon;
 
                   if (item.children) {
+                    const visibleChildren = item.children.filter((child) => canAccessChild(child));
                     const active = isChildActive(item.children);
+
                     return (
                       <li key={index}>
                         <button
-                          onClick={() => setFactoryDropdownOpen(!factoryDropdownOpen)}
+                          onClick={() => toggleDropdown(item.title)}
                           type="button"
                           className={`flex items-center w-full py-0.5 px-2 rounded-xl group transition-all duration-200 font-bold ${
                             active ? 'bg-white sidebar-pill' : ''
@@ -236,14 +265,14 @@ export function SideBar({ sidebarOpen, toggleSidebar, totalNotifications }) {
                           </span>
                           <ChevronDown
                             className={`w-4 h-4 transition-transform duration-200 ${
-                              factoryDropdownOpen ? 'rotate-180' : ''
+                              isDropdownOpen(item.title) ? 'rotate-180' : ''
                             }`}
                           />
                         </button>
 
-                        {factoryDropdownOpen && (
+                        {isDropdownOpen(item.title) && (
                           <ul className="pl-11 mt-1 space-y-0.5">
-                            {item.children.map((child, childIndex) => (
+                            {visibleChildren.map((child, childIndex) => (
                               <li key={childIndex}>
                                 <Link
                                   to={child.path}
@@ -253,7 +282,7 @@ export function SideBar({ sidebarOpen, toggleSidebar, totalNotifications }) {
                                       : 'text-white/80 hover:bg-white/10'
                                   }`}
                                 >
-                                  • {child.title}
+                                  {child.title}
                                 </Link>
                               </li>
                             ))}
@@ -308,12 +337,8 @@ export function SideBar({ sidebarOpen, toggleSidebar, totalNotifications }) {
                 .filter((item) => {
                   if (item.path === '/') return true;
                   if (item.children) {
-                    return item.children.some((child) => {
-                      const section = pathToSection[child.path] || null;
-                      return canAccessSection(section);
-                    });
+                    return item.children.some((child) => canAccessChild(child));
                   }
-                  if (item.path === '/add-members') return isAdmin;
                   const section = pathToSection[item.path] || null;
                   return canAccessSection(section);
                 })
@@ -322,13 +347,14 @@ export function SideBar({ sidebarOpen, toggleSidebar, totalNotifications }) {
                   const active = item.children
                     ? isChildActive(item.children)
                     : isActive(item.path);
+
                   return (
                     <li key={index}>
                       {item.children ? (
                         <button
                           onClick={() => {
                             if (!sidebarOpen) toggleSidebar();
-                            setFactoryDropdownOpen(!factoryDropdownOpen);
+                            toggleDropdown(item.title);
                           }}
                           className="block"
                         >
@@ -339,9 +365,7 @@ export function SideBar({ sidebarOpen, toggleSidebar, totalNotifications }) {
                           >
                             <Icon
                               className={`${
-                                active
-                                  ? 'text-[var(--sidebar-bg)]'
-                                  : 'text-white/90'
+                                active ? 'text-[var(--sidebar-bg)]' : 'text-white/90'
                               } w-4 h-4`}
                             />
                           </div>
@@ -358,9 +382,7 @@ export function SideBar({ sidebarOpen, toggleSidebar, totalNotifications }) {
                             ) : (
                               <Icon
                                 className={`${
-                                  active
-                                    ? 'text-[var(--sidebar-bg)]'
-                                    : 'text-white/90'
+                                  active ? 'text-[var(--sidebar-bg)]' : 'text-white/90'
                                 } w-4 h-4`}
                               />
                             )}
@@ -373,7 +395,6 @@ export function SideBar({ sidebarOpen, toggleSidebar, totalNotifications }) {
             </ul>
           )}
 
-          {/* User Info & Logout */}
           <div className="mt-auto flex items-center justify-center">
             {sidebarOpen ? (
               <div className="flex items-center space-x-2">
@@ -437,7 +458,6 @@ export function SideBar({ sidebarOpen, toggleSidebar, totalNotifications }) {
         </div>
       </aside>
 
-      {/* Overlay for Mobile */}
       {sidebarOpen && (
         <div
           onClick={toggleSidebar}

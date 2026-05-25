@@ -60,6 +60,11 @@ const dealerSchema = new mongoose.Schema({
     password: {
         type: String,
         required: true
+    },
+    walletBalance: {
+        type: Number,
+        default: 0,
+        min: 0
     }
 }, {
     timestamps: true

@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { getCustomers, getCustomerPurchases } from '../services/customerService';
 import { toast } from 'react-hot-toast';
-import { ShoppingCart, X, Edit, Trash2, Plus } from 'lucide-react';
-import EditCustomerCredentialsModal from './EditCustomerCredentialsModal';
+import { ShoppingCart, X, Edit, Trash2, Plus, Eye } from 'lucide-react';
+import EditCustomerModal from './EditCustomerModal';
 import AddCustomerModal from './AddCustomerModal';
 import { CustomerFilters } from './CustomerFilters';
 import ExportToExcelButton from '../../../global/ExportToExcelButton';
@@ -18,6 +18,7 @@ export default function Customers() {
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [editingCustomer, setEditingCustomer] = useState(null);
+  const [editModalInitialMode, setEditModalInitialMode] = useState('edit');
   const [purchases, setPurchases] = useState([]);
   const [pLoading, setPLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -322,12 +323,30 @@ export default function Customers() {
                         </button>
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-500">
-                        <button
-                          onClick={() => openEditModal(c)}
-                          className="text-indigo-600 hover:text-indigo-900"
-                        >
-                          <Edit className="h-5 w-5" />
-                        </button>
+                        <div className="flex items-center space-x-3">
+                          <button
+                            onClick={() => {
+                                setEditingCustomer(c);
+                                setEditModalInitialMode('view');
+                                setEditModalOpen(true);
+                            }}
+                            className="text-blue-600 hover:text-blue-900"
+                            title="View Details"
+                          >
+                            <Eye className="h-5 w-5" />
+                          </button>
+                          <button
+                            onClick={() => {
+                                setEditingCustomer(c);
+                                setEditModalInitialMode('edit');
+                                setEditModalOpen(true);
+                            }}
+                            className="text-indigo-600 hover:text-indigo-900"
+                            title="Edit Customer"
+                          >
+                            <Edit className="h-5 w-5" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))
@@ -508,11 +527,12 @@ export default function Customers() {
         onSave={handleAddCustomer}
       />
 
-      <EditCustomerCredentialsModal
+      <EditCustomerModal
         isOpen={editModalOpen}
         onClose={() => setEditModalOpen(false)}
         customer={editingCustomer}
         onUpdate={fetchCustomers}
+        initialMode={editModalInitialMode}
       />
     </div>
     </div>

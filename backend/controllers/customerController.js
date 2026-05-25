@@ -8,7 +8,7 @@ import { getCustomerIdsForExecutiveScope } from '../utils/executiveScope.js';
 // POST /api/customers
 export const createCustomer = async (req, res) => {
     try {
-        const { name, phone, email, address, state, city, password } = req.body;
+        const { name, phone, email, address, state, city, plumberName, plumberPhone, password } = req.body;
 
         const customerExists = await Customer.findOne({ phone });
 
@@ -23,6 +23,8 @@ export const createCustomer = async (req, res) => {
             address,
             state,
             city,
+            plumberName,
+            plumberPhone,
         });
 
         if (password) {
@@ -33,6 +35,46 @@ export const createCustomer = async (req, res) => {
         const createdCustomer = await customer.save();
         res.status(201).json(createdCustomer);
 
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+export const updateCustomer = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { name, phone, email, address, state, city, plumberName, plumberPhone, password } = req.body;
+
+        const customer = await Customer.findById(id);
+
+        if (!customer) {
+            return res.status(404).json({ message: 'Customer not found' });
+        }
+
+        // Check if phone is being changed and if it's already taken
+        if (phone && phone !== customer.phone) {
+            const customerExists = await Customer.findOne({ phone });
+            if (customerExists) {
+                return res.status(400).json({ message: 'A customer with this phone number already exists.' });
+            }
+            customer.phone = phone;
+        }
+
+        if (name) customer.name = name;
+        if (email !== undefined) customer.email = email;
+        if (address !== undefined) customer.address = address;
+        if (state !== undefined) customer.state = state;
+        if (city !== undefined) customer.city = city;
+        if (plumberName !== undefined) customer.plumberName = plumberName;
+        if (plumberPhone !== undefined) customer.plumberPhone = plumberPhone;
+
+        if (password) {
+            const salt = await bcrypt.genSalt(10);
+            customer.password = await bcrypt.hash(password, salt);
+        }
+
+        const updatedCustomer = await customer.save();
+        res.json(updatedCustomer);
     } catch (error) {
         res.status(500).json({ message: error.message });
     }

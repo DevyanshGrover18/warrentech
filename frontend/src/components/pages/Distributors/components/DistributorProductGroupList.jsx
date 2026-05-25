@@ -51,7 +51,7 @@ export default function DistributorProductGroupList({ products, dealers, distrib
     };
 
     const handleSellToCustomer = async (saleData) => {
-        const { customerName, customerPhone, customerEmail, customerAddress, customerState, customerCity, plumberName, productSelection: groupsToSell } = saleData;
+        const { customerName, customerPhone, customerEmail, customerAddress, customerState, customerCity, plumberName, plumberPhone, productSelection: groupsToSell } = saleData;
 
         if (!customerName || !customerPhone) {
             toast.error('Customer name and phone are required.');
@@ -77,7 +77,8 @@ export default function DistributorProductGroupList({ products, dealers, distrib
                 customerAddress,
                 customerState,
                 customerCity,
-                plumberName
+                plumberName,
+                plumberPhone
             });
             toast.success(`${productIdsToSell.length} products sold successfully!`);
             setShowSellModal(false);

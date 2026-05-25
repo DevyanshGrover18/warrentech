@@ -1,15 +1,21 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { getCustomers, getCustomerPurchases } from '../customer/services/customerService';
 import { toast } from 'react-hot-toast';
-import { ShoppingCart, X } from 'lucide-react';
+import { ShoppingCart, X, Edit, Plus, Eye } from 'lucide-react';
 import { CustomerFilters } from '../customer/components/CustomerFilters';
+import EditCustomerModal from '../customer/components/EditCustomerModal';
+import AddCustomerModal from '../customer/components/AddCustomerModal';
 import axios from 'axios';
 
 export default function ExecutiveCustomers() {
   const [customers, setCustomers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [addModalOpen, setAddModalOpen] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState(null);
+  const [editingCustomer, setEditingCustomer] = useState(null);
+  const [editModalInitialMode, setEditModalInitialMode] = useState('edit');
   const [purchases, setPurchases] = useState([]);
   const [pLoading, setPLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -76,6 +82,26 @@ export default function ExecutiveCustomers() {
     }
   };
 
+  const openEditModal = (customer) => {
+    setEditingCustomer(customer);
+    setEditModalOpen(true);
+  };
+
+  const handleAddCustomer = async (formData) => {
+    try {
+      const token = localStorage.getItem('token');
+      await axios.post(`${import.meta.env.VITE_API_URL}/api/customers`, formData, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      toast.success('Customer added successfully');
+      setAddModalOpen(false);
+      fetchCustomers();
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to add customer');
+      throw error;
+    }
+  };
+
   const filteredCustomers = useMemo(() => customers.filter(customer => {
     const searchLower = searchQuery.toLowerCase();
     const matchSearch = (
@@ -97,9 +123,18 @@ export default function ExecutiveCustomers() {
   return (
     <div className='p-4'>
       <div className="p-6 bg-white mt-2 rounded-lg">
-        <div>
-          <h1 className="text-xl font-semibold text-gray-900">Customers</h1>
-          <p className="text-sm text-gray-900 mt-1">Total {filteredCustomers.length}</p>
+        <div className="flex justify-between items-center">
+          <div>
+            <h1 className="text-xl font-semibold text-gray-900">Customers</h1>
+            <p className="text-sm text-gray-900 mt-1">Total {filteredCustomers.length}</p>
+          </div>
+          <button
+            onClick={() => setAddModalOpen(true)}
+            className="flex items-center justify-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700"
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Add Customer
+          </button>
         </div>
 
         <div className="bg-white rounded-lg p-1 mt-4">
@@ -134,12 +169,13 @@ export default function ExecutiveCustomers() {
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Address</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Products</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {paginatedCustomers.length === 0 ? (
                     <tr>
-                      <td colSpan="5" className="px-6 py-4 text-center text-sm text-gray-500">No customers found.</td>
+                      <td colSpan="6" className="px-6 py-4 text-center text-sm text-gray-500">No customers found.</td>
                     </tr>
                   ) : (
                     paginatedCustomers.map((customer) => (
@@ -156,6 +192,32 @@ export default function ExecutiveCustomers() {
                             <ShoppingCart className="h-4 w-4 mr-1" />
                             {customer.purchaseCount || 0} Products
                           </button>
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-500">
+                          <div className="flex items-center space-x-3">
+                            <button
+                              onClick={() => {
+                                  setEditingCustomer(customer);
+                                  setEditModalInitialMode('view');
+                                  setEditModalOpen(true);
+                              }}
+                              className="text-blue-600 hover:text-blue-900"
+                              title="View Details"
+                            >
+                              <Eye className="h-5 w-5" />
+                            </button>
+                            <button
+                              onClick={() => {
+                                  setEditingCustomer(customer);
+                                  setEditModalInitialMode('edit');
+                                  setEditModalOpen(true);
+                              }}
+                              className="text-indigo-600 hover:text-indigo-900"
+                              title="Edit Customer"
+                            >
+                              <Edit className="h-5 w-5" />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))
@@ -252,6 +314,20 @@ export default function ExecutiveCustomers() {
             </div>
           </div>
         )}
+
+        <AddCustomerModal
+          isOpen={addModalOpen}
+          onClose={() => setAddModalOpen(false)}
+          onSave={handleAddCustomer}
+        />
+
+        <EditCustomerModal
+          isOpen={editModalOpen}
+          onClose={() => setEditModalOpen(false)}
+          customer={editingCustomer}
+          onUpdate={fetchCustomers}
+          initialMode={editModalInitialMode}
+        />
       </div>
     </div>
   );

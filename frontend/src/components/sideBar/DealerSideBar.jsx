@@ -26,6 +26,12 @@ const dealerSidebarItems = [
         path: '/dealer/sales',
         icon: ShoppingBag,
         color: 'green'
+    },
+    {
+        title: 'Wallet',
+        path: '/dealer/wallet',
+        icon: ShoppingBag,
+        color: 'emerald'
     }
 ];
 

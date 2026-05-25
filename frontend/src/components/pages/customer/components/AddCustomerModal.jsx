@@ -86,6 +86,8 @@ export default function AddCustomerModal({ isOpen, onClose, onSave }) {
                             <option value="">Select City (Optional)</option>
                             {cities.map(city => <option key={city} value={city}>{city}</option>)}
                         </select>
+                        <input type="text" name="plumberName" value={formData.plumberName} onChange={handleChange} placeholder="Plumber Name (Optional)" className="w-full p-2 border border-gray-300 rounded-lg" />
+                        <input type="text" name="plumberPhone" value={formData.plumberPhone} onChange={handleChange} placeholder="Plumber Phone (Optional)" className="w-full p-2 border border-gray-300 rounded-lg" />
                         <input type="password" name="password" value={formData.password} onChange={handleChange} placeholder="Password (Optional)" className="w-full p-2 border border-gray-300 rounded-lg" />
                     </div>
                     <div className="mt-6 flex justify-end space-x-2">

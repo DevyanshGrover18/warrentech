@@ -9,6 +9,7 @@ import {
   Package,
   Eye,
   Trash2,
+  Edit,
 } from "lucide-react";
 import { getFactories } from "../FactoryManagement/services/factoryService";
 import { getModels } from "../Management/services/managementService";
@@ -18,6 +19,8 @@ import {
   FilterSelector,
 } from "../../global/FilterGroup";
 import { confirmDelete } from "../../global/deleteConfirm";
+import EditSaleModal from "../Dealers/components/EditSaleModal";
+import EditProductModal from "../Products/components/EditProductModal";
 
 const API_URL = import.meta.env.VITE_API_URL;
 const PRODUCT_API_URL = `${API_URL}/api/products`;
@@ -55,12 +58,15 @@ const getCustomerDetails = (product) => {
   if (!sale) return null;
 
   return {
+    _id: sale.customer?._id || null,
     name: sale.customer?.name || sale.customerName || "-",
     phone: sale.customer?.phone || sale.customerPhone || "-",
     email: sale.customer?.email || sale.customerEmail || "-",
     address: sale.customer?.address || sale.customerAddress || "-",
     state: sale.customer?.state || "-",
     city: sale.customer?.city || "-",
+    plumberName: sale.customer?.plumberName || sale.plumberName || "-",
+    plumberPhone: sale.customer?.plumberPhone || sale.plumberPhone || "-",
     saleDate: sale.saleDate || sale.soldAt || null,
   };
 };
@@ -79,6 +85,8 @@ export default function Sales() {
   const [selectedModelId, setSelectedModelId] = useState(null);
   const [showModelModal, setShowModelModal] = useState(false);
   const [selectedCustomerProduct, setSelectedCustomerProduct] = useState(null);
+  const [editingProduct, setEditingProduct] = useState(null);
+  const [editProductModalOpen, setEditProductModalOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [modalCurrentPage, setModalCurrentPage] = useState(1);
@@ -299,6 +307,24 @@ export default function Sales() {
     } finally {
       setDeletingProductId(null);
     }
+  };
+
+  const handleSaleSave = async (updatedData) => {
+    try {
+      const token = localStorage.getItem('token');
+      await axios.put(`${API_URL}/api/sales/${selectedCustomerProduct.sale._id}`, updatedData, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      toast.success('Sale details updated successfully');
+      fetchProducts();
+      setSelectedCustomerProduct(null);
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to update sale');
+    }
+  };
+
+  const handleProductUpdate = () => {
+    fetchProducts();
   };
 
   const selectedModelName =
@@ -669,14 +695,26 @@ export default function Sales() {
                             )}
                           </td>
                           <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                            <button
-                              onClick={() => handleDeleteProduct(product._id)}
-                              disabled={deletingProductId === product._id}
-                              className="inline-flex items-center px-2.5 py-1.5 border border-red-200 text-xs font-medium rounded text-red-700 hover:bg-red-50 transition-colors disabled:opacity-50"
-                            >
-                              <Trash2 className="h-4 w-4 mr-1" />
-                              Delete
-                            </button>
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => {
+                                  setEditingProduct(product);
+                                  setEditProductModalOpen(true);
+                                }}
+                                className="inline-flex items-center px-2.5 py-1.5 border border-blue-200 text-xs font-medium rounded text-blue-700 hover:bg-blue-50 transition-colors"
+                              >
+                                <Edit className="h-4 w-4 mr-1" />
+                                Edit
+                              </button>
+                              <button
+                                onClick={() => handleDeleteProduct(product._id)}
+                                disabled={deletingProductId === product._id}
+                                className="inline-flex items-center px-2.5 py-1.5 border border-red-200 text-xs font-medium rounded text-red-700 hover:bg-red-50 transition-colors disabled:opacity-50"
+                              >
+                                <Trash2 className="h-4 w-4 mr-1" />
+                                Delete
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       );
@@ -744,71 +782,20 @@ export default function Sales() {
         </div>
       )}
 
-      {selectedCustomerDetails && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-          <div
-            className="absolute inset-0 bg-black/40"
-            onClick={() => setSelectedCustomerProduct(null)}
-          ></div>
-          <div className="relative z-10 bg-white rounded-lg shadow-lg w-full max-w-lg">
-            <div className="p-4 border-b border-gray-200 flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-gray-900">
-                Customer Details
-              </h3>
-              <button
-                onClick={() => setSelectedCustomerProduct(null)}
-                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
-              >
-                <X className="h-5 w-5 text-gray-500" />
-              </button>
-            </div>
-            <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
-              <div>
-                <p className="text-gray-500">Name</p>
-                <p className="font-medium text-gray-900">
-                  {selectedCustomerDetails.name}
-                </p>
-              </div>
-              <div>
-                <p className="text-gray-500">Phone</p>
-                <p className="font-medium text-gray-900">
-                  {selectedCustomerDetails.phone}
-                </p>
-              </div>
-              <div>
-                <p className="text-gray-500">Email</p>
-                <p className="font-medium text-gray-900">
-                  {selectedCustomerDetails.email}
-                </p>
-              </div>
-              <div>
-                <p className="text-gray-500">Sale Date</p>
-                <p className="font-medium text-gray-900">
-                  {formatDate(selectedCustomerDetails.saleDate)}
-                </p>
-              </div>
-              <div className="sm:col-span-2">
-                <p className="text-gray-500">Address</p>
-                <p className="font-medium text-gray-900">
-                  {selectedCustomerDetails.address}
-                </p>
-              </div>
-              <div>
-                <p className="text-gray-500">State</p>
-                <p className="font-medium text-gray-900">
-                  {selectedCustomerDetails.state}
-                </p>
-              </div>
-              <div>
-                <p className="text-gray-500">City</p>
-                <p className="font-medium text-gray-900">
-                  {selectedCustomerDetails.city}
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <EditSaleModal
+        isOpen={!!selectedCustomerProduct}
+        onClose={() => setSelectedCustomerProduct(null)}
+        sale={selectedCustomerProduct?.sale || {}}
+        onSave={handleSaleSave}
+        initialMode="view"
+      />
+
+      <EditProductModal
+        isOpen={editProductModalOpen}
+        onClose={() => setEditProductModalOpen(false)}
+        product={editingProduct}
+        onUpdate={handleProductUpdate}
+      />
     </div>
   );
 }

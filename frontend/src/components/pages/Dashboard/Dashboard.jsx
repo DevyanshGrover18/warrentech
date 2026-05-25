@@ -7,6 +7,10 @@ import {
   Truck,
   LayoutDashboard,
   BarChart2,
+  Edit,
+  User,
+  Phone,
+  Calendar,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import axios from "axios";
@@ -17,12 +21,17 @@ import TotalRevenueChart from "./TotalRevenueChart";
 import SalesProgress from "./SalesProgress";
 import CustomerGrowthChart from "./CustomerGrowthChart";
 import DistributorSalesHistogram from "./DistributorSalesHistogram";
+import EditSaleModal from "../Dealers/components/EditSaleModal";
+import { updateSale } from "../Dealers/services/dealerSalesService";
+import { toast } from "react-hot-toast";
 
 export default function Dashboard() {
   const [activeTab, setActiveTab] = useState("overview");
   const [loading, setLoading] = useState(true);
   const [sales, setSales] = useState([]);
   const [assignedProducts, setAssignedProducts] = useState([]);
+  const [selectedSale, setSelectedSale] = useState(null);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
   const [counts, setCounts] = useState({
     factories: 0,
@@ -37,6 +46,25 @@ export default function Dashboard() {
     completed: 0,
     dispatched: 0,
   });
+
+  const fetchAnalyticsData = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      const [salesResponse, assignedProductsResponse] = await Promise.all([
+        axios.get(`${import.meta.env.VITE_API_URL}/api/sales/all`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+        axios.get(
+          `${import.meta.env.VITE_API_URL}/api/sales/assigned-products`,
+          { headers: { Authorization: `Bearer ${token}` } },
+        ),
+      ]);
+      setSales(salesResponse.data);
+      setAssignedProducts(assignedProductsResponse.data);
+    } catch (error) {
+      console.error("Error fetching analytics data:", error);
+    }
+  };
 
   useEffect(() => {
     const fetchDashboardData = async () => {
@@ -55,31 +83,31 @@ export default function Dashboard() {
       }
     };
 
-    const fetchAnalyticsData = async () => {
-      try {
-        const token = localStorage.getItem("token");
-        const [salesResponse, assignedProductsResponse] = await Promise.all([
-          axios.get(`${import.meta.env.VITE_API_URL}/api/sales/all`, {
-            headers: { Authorization: `Bearer ${token}` },
-          }),
-          axios.get(
-            `${import.meta.env.VITE_API_URL}/api/sales/assigned-products`,
-            { headers: { Authorization: `Bearer ${token}` } },
-          ),
-        ]);
-        setSales(salesResponse.data);
-        setAssignedProducts(assignedProductsResponse.data);
-      } catch (error) {
-        console.error("Error fetching analytics data:", error);
-      }
-    };
-
     if (activeTab === "overview") {
       fetchDashboardData();
     } else if (activeTab === "analytics") {
       fetchAnalyticsData();
     }
   }, [activeTab]);
+
+  const handleEdit = (sale) => {
+    setSelectedSale(sale);
+    setIsEditModalOpen(true);
+  };
+
+  const handleSave = async (updatedData) => {
+    if (!selectedSale) return;
+
+    try {
+      await updateSale(selectedSale._id, updatedData);
+      toast.success("Sale updated successfully");
+      setIsEditModalOpen(false);
+      setSelectedSale(null);
+      fetchAnalyticsData();
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Error updating sale");
+    }
+  };
 
   const cardData = [
     {
@@ -229,11 +257,81 @@ export default function Dashboard() {
                     <TotalRevenueChart sales={sales} />
                   </div>
                 </div>
+
+                {/* Sales List Table */}
+                <div className="mt-8 bg-white rounded-xl shadow-md border border-gray-200 overflow-hidden">
+                  <div className="px-6 py-4 border-b border-gray-200">
+                    <h2 className="text-lg font-bold text-gray-800">All Sales</h2>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200 text-sm">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          {["Product Name", "Serial Number", "Customer Name", "Customer Phone", "Customer Email", "Customer Address", "Plumber Name", "Sold At", "Actions"].map((head) => (
+                            <th key={head} className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                              {head}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {sales.map((sale) => (
+                          <tr key={sale._id} className="hover:bg-gray-50">
+                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{sale.product?.productName || "-"}</td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{sale.product?.serialNumber || "-"}</td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 flex items-center h-full">
+                              <User className="h-4 w-4 mr-2 text-gray-400" />
+                              {sale.customerName || "-"}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                              <div className="flex items-center">
+                                <Phone className="h-4 w-4 mr-2 text-gray-400" />
+                                {sale.customerPhone || "-"}
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{sale.customerEmail || "-"}</td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 truncate max-w-[150px]">{sale.customerAddress || "-"}</td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{sale.plumberName || "-"}</td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                              <div className="flex items-center">
+                                <Calendar className="h-4 w-4 mr-2 text-gray-400" />
+                                {new Date(sale.soldAt || sale.createdAt).toLocaleDateString()}
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                              <button
+                                onClick={() => handleEdit(sale)}
+                                className="text-blue-600 hover:text-blue-900"
+                              >
+                                <Edit className="h-5 w-5" />
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                        {sales.length === 0 && (
+                          <tr>
+                            <td colSpan="9" className="px-6 py-10 text-center text-gray-500">No sales records found.</td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
               </div>
             )}
           </motion.div>
         </AnimatePresence>
       </div>
+
+      {/* Edit Sale Modal */}
+      {selectedSale && (
+        <EditSaleModal
+          isOpen={isEditModalOpen}
+          onClose={() => setIsEditModalOpen(false)}
+          sale={selectedSale}
+          onSave={handleSave}
+        />
+      )}
     </div>
   );
 }

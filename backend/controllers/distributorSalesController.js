@@ -2,6 +2,7 @@ import DistributorDealerProduct from '../models/DistributorDealerProduct.js';
 import Sale from '../models/Sale.js';
 import Product from '../models/Product.js';
 import Customer from '../models/Customer.js';
+import { isSaleFormComplete, recomputeSaleIncentive } from '../utils/incentiveUtils.js';
 
 export const getDealerSales = async (req, res) => {
     try {
@@ -42,9 +43,13 @@ export const getCustomerSales = async (req, res) => {
 
 export const sellToCustomer = async (req, res) => {
     try {
-        const { productIds, distributorId, customerName, customerPhone, customerAddress, customerEmail, customerState, customerCity, plumberName, plumberPhone } = req.body;
+        const { productIds, customerName, customerPhone, customerAddress, customerEmail, customerState, customerCity, plumberName, plumberPhone } = req.body;
 
-        if (!productIds || productIds.length === 0 || !distributorId || !customerName || !customerPhone) {
+        if (!req.user || req.user.role !== 'distributor') {
+            return res.status(403).json({ message: 'Only distributors can create these sales.' });
+        }
+
+        if (!productIds || productIds.length === 0 || !customerName || !customerPhone) {
             return res.status(400).json({ message: 'Missing required sale details.' });
         }
 
@@ -78,7 +83,7 @@ export const sellToCustomer = async (req, res) => {
             // Create Sale record
             const sale = await Sale.create({
                 product: productId,
-                distributor: distributorId,
+                distributor: req.user.distributor,
                 customerName,
                 customerPhone,
                 customerAddress,
@@ -89,7 +94,27 @@ export const sellToCustomer = async (req, res) => {
                 plumberPhone,
                 customer: customer._id,
                 saleDate: new Date(),
+                createdByRole: req.user.role,
+                createdByUserId: req.user.id,
+                createdByEntityType: 'distributor',
+                createdByEntityId: req.user.distributor,
+                incentiveStatus: isSaleFormComplete({
+                    customerName,
+                    customerPhone,
+                    customerEmail,
+                    customerAddress,
+                    customerState,
+                    customerCity,
+                    plumberName,
+                    plumberPhone,
+                }) ? 'pending_approval' : 'incomplete',
             });
+
+            await recomputeSaleIncentive(sale, {
+                editedByRole: req.user.role,
+                editedByUserId: req.user.id,
+            });
+            await sale.save();
             salesRecords.push(sale);
 
             // Update Product status

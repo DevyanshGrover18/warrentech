@@ -17,6 +17,8 @@ import DistributorProductGroupList from "./components/DistributorProductGroupLis
 import ExportToExcelButton from "../../global/ExportToExcelButton";
 import ExportToPdfButton from "../../global/ExportToPdfButton";
 import { confirmDelete } from "../../global/deleteConfirm";
+import WalletDetailsModal from "../Wallets/components/WalletDetailsModal";
+import WalletIconButton from "../Wallets/components/WalletIconButton";
 
 const API_URL = `${import.meta.env.VITE_API_URL}/api/distributors`;
 
@@ -199,6 +201,7 @@ function Distributors() {
   const [assignmentLoadingDealers, setAssignmentLoadingDealers] =
     useState(false);
   const [assignmentSubmitting, setAssignmentSubmitting] = useState(false);
+  const [selectedWalletDistributor, setSelectedWalletDistributor] = useState(null);
 
   const [newDistributor, setNewDistributor] = useState({
     name: "",
@@ -545,6 +548,14 @@ function Distributors() {
     }
   };
 
+  const openWalletModal = (distributor) => {
+    setSelectedWalletDistributor({
+      entityType: "distributor",
+      entityId: distributor._id,
+      entityName: distributor.name,
+    });
+  };
+
   return (
     <div className="p-2">
       <div className="p-2">
@@ -718,26 +729,27 @@ function Distributors() {
                               {distributor.dealers?.length || 0} Dealers
                             </button>
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            <div className="flex items-center space-x-2">
+                          <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
+                            <div className="flex items-center gap-1">
+                              <WalletIconButton onClick={() => openWalletModal(distributor)} className="shrink-0" />
                               <button
                                 onClick={() =>
                                   handleOpenExecutiveAssignment(distributor)
                                 }
                                 title="Assign Executive"
-                                className="p-2 rounded-full hover:bg-emerald-50 transition-colors"
+                                className="inline-flex h-8 w-8 items-center justify-center rounded-full hover:bg-emerald-50 transition-colors"
                               >
                                 <UserRoundCog
-                                  size={18}
+                                  size={16}
                                   className="text-emerald-600"
                                 />
                               </button>
                               <button
                                 onClick={() => handleEditClick(distributor)}
-                                className="p-2 rounded-full hover:bg-gray-100 transition-colors"
+                                className="inline-flex h-8 w-8 items-center justify-center rounded-full hover:bg-gray-100 transition-colors"
                               >
                                 <FilePenLine
-                                  size={20}
+                                  size={16}
                                   className="text-gray-500"
                                 />
                               </button>
@@ -745,9 +757,9 @@ function Distributors() {
                                 onClick={() =>
                                   handleDeleteDistributor(distributor._id)
                                 }
-                                className="p-2 rounded-full hover:bg-gray-100 transition-colors"
+                                className="inline-flex h-8 w-8 items-center justify-center rounded-full hover:bg-gray-100 transition-colors"
                               >
-                                <Trash2 size={20} className="text-red-500" />
+                                <Trash2 size={16} className="text-red-500" />
                               </button>
                             </div>
                           </td>
@@ -771,7 +783,8 @@ function Distributors() {
                             <h3 className="font-medium text-gray-900">
                               {distributor.name}
                             </h3>
-                            <div className="flex items-center space-x-2">
+                            <div className="flex items-center gap-1 flex-wrap">
+                              <WalletIconButton onClick={() => openWalletModal(distributor)} className="shrink-0" />
                               <input
                                 type="checkbox"
                                 checked={selectedDistributors.includes(
@@ -784,19 +797,19 @@ function Distributors() {
                                   handleOpenExecutiveAssignment(distributor)
                                 }
                                 title="Assign Executive"
-                                className="p-2 rounded-full hover:bg-emerald-50 transition-colors"
+                                className="inline-flex h-8 w-8 items-center justify-center rounded-full hover:bg-emerald-50 transition-colors"
                               >
                                 <UserRoundCog
-                                  size={18}
+                                  size={16}
                                   className="text-emerald-600"
                                 />
                               </button>
                               <button
                                 onClick={() => handleEditClick(distributor)}
-                                className="p-2 rounded-full hover:bg-gray-100 transition-colors"
+                                className="inline-flex h-8 w-8 items-center justify-center rounded-full hover:bg-gray-100 transition-colors"
                               >
                                 <FilePenLine
-                                  size={20}
+                                  size={16}
                                   className="text-gray-500"
                                 />
                               </button>
@@ -804,9 +817,9 @@ function Distributors() {
                                 onClick={() =>
                                   handleDeleteDistributor(distributor._id)
                                 }
-                                className="p-2 rounded-full hover:bg-gray-100 transition-colors"
+                                className="inline-flex h-8 w-8 items-center justify-center rounded-full hover:bg-gray-100 transition-colors"
                               >
-                                <Trash2 size={20} className="text-red-500" />
+                                <Trash2 size={16} className="text-red-500" />
                               </button>
                             </div>
                           </div>
@@ -1437,6 +1450,15 @@ function Distributors() {
             </div>
           </div>
         </div>
+      )}
+
+      {selectedWalletDistributor && (
+        <WalletDetailsModal
+          entityType={selectedWalletDistributor.entityType}
+          entityId={selectedWalletDistributor.entityId}
+          entityName={selectedWalletDistributor.entityName}
+          onClose={() => setSelectedWalletDistributor(null)}
+        />
       )}
     </div>
   );

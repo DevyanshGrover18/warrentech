@@ -8,6 +8,7 @@ const defaultColumns = [
   "MRP(PRICE)",
   "FACTORY",
   "DISTRIBUTOR",
+  "ACTIONS",
 ];
 
 export default function InventoryManagementModal({
@@ -51,6 +52,7 @@ export default function InventoryManagementModal({
   allRowsSelected = false,
   onToggleAllRows = () => {},
   onRowToggle = () => {},
+  onEdit = () => {},
   showingFrom = 1,
   showingTo = 1,
   totalItems = 1,
@@ -224,6 +226,14 @@ export default function InventoryManagementModal({
                     <td className="px-4 py-3">{row.mrp}</td>
                     <td className="px-4 py-3">{row.factory}</td>
                     <td className="px-4 py-3">{row.distributor}</td>
+                    <td className="px-4 py-3">
+                      <button
+                        onClick={() => onEdit(row.id)}
+                        className="text-blue-600 hover:text-blue-800"
+                      >
+                        Edit
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>

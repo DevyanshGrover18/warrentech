@@ -6,10 +6,10 @@ const router = express.Router();
 
 router.get('/all', verifyToken, getAllSales);
 router.get('/dealer-sales', verifyToken, getDealerSales);
-router.post('/', createSale);
+router.post('/', verifyToken, createSale);
 router.get('/customer', verifyToken, getSalesByCustomer);
-router.get('/dealer/:dealerId', getSalesByDealer);
+router.get('/dealer/:dealerId', verifyToken, getSalesByDealer);
 router.get('/assigned-products', verifyToken, getAssignedProducts);
-router.put('/:saleId', updateSale);
+router.put('/:saleId', verifyToken, updateSale);
 
 export default router;

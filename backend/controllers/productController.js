@@ -147,6 +147,43 @@ export const getProductBySerialNumber = async (req, res) => {
   }
 };
 
+export const updateProduct = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { serialNumber, productName, price, status } = req.body;
+
+    const product = await Product.findById(id);
+
+    if (!product) {
+      return res.status(404).json({ message: "Product not found" });
+    }
+
+    if (req.user?.role === "executive" && product.distributor) {
+      const inScope = await ensureDistributorInScope(req.user, product.distributor);
+      if (!inScope) {
+        return res.status(403).json({ message: "Access denied." });
+      }
+    }
+
+    if (serialNumber && serialNumber !== product.serialNumber) {
+      const serialExists = await Product.findOne({ serialNumber });
+      if (serialExists) {
+        return res.status(400).json({ message: "Serial number already exists" });
+      }
+      product.serialNumber = serialNumber;
+    }
+
+    if (productName) product.productName = productName;
+    if (price !== undefined) product.price = price;
+    if (status) product.status = status;
+
+    const updatedProduct = await product.save();
+    res.json(updatedProduct);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 export const deleteProduct = async (req, res) => {
   try {
     const product = await Product.findById(req.params.id);

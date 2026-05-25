@@ -12,6 +12,8 @@ import { DealerFilters } from './components/DealerFilters';
 import ExportToExcelButton from '../../global/ExportToExcelButton';
 import ExportToPdfButton from '../../global/ExportToPdfButton';
 import { confirmDelete } from '../../global/deleteConfirm';
+import WalletDetailsModal from '../Wallets/components/WalletDetailsModal';
+import WalletIconButton from '../Wallets/components/WalletIconButton';
 
 function Dealers() {
     const {
@@ -37,6 +39,7 @@ function Dealers() {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [stateFilter, setStateFilter] = useState('all');
     const [distributorFilter, setDistributorFilter] = useState('all');
+    const [selectedWalletDealer, setSelectedWalletDealer] = useState(null);
 
     const filteredDealers = useMemo(() => {
         return dealers.filter(dealer => {
@@ -219,6 +222,14 @@ function Dealers() {
         }
     };
 
+    const openWalletModal = (dealer) => {
+        setSelectedWalletDealer({
+            entityType: 'dealer',
+            entityId: dealer._id,
+            entityName: dealer.name,
+        });
+    };
+
     return (
         <div className="p-2">
             <div className="p-2">
@@ -346,6 +357,7 @@ function Dealers() {
                                                     </td> */}
                                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                                         <div className="flex items-center space-x-2">
+                                                            <WalletIconButton onClick={() => openWalletModal(dealer)} />
                                                             <button 
                                                                 onClick={() => handleEditClick(dealer)}
                                                                 className="p-2 rounded-full hover:bg-gray-100 transition-colors"
@@ -381,6 +393,7 @@ function Dealers() {
                                                     <div className="flex justify-between items-start">
                                                         <h3 className="font-medium text-gray-900">{dealer.name}</h3>
                                                         <div className="flex items-center space-x-2">
+                                                            <WalletIconButton onClick={() => openWalletModal(dealer)} />
                                                             <button 
                                                                 onClick={() => handleEditClick(dealer)}
                                                                 className="p-2 rounded-full hover:bg-gray-100 transition-colors"
@@ -681,6 +694,15 @@ function Dealers() {
                         </div>
                     </div>
                 </div>
+            )}
+
+            {selectedWalletDealer && (
+                <WalletDetailsModal
+                    entityType={selectedWalletDealer.entityType}
+                    entityId={selectedWalletDealer.entityId}
+                    entityName={selectedWalletDealer.entityName}
+                    onClose={() => setSelectedWalletDealer(null)}
+                />
             )}
         </div>
     );

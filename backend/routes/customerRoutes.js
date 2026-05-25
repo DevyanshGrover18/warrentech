@@ -7,6 +7,7 @@ import {
   checkPhone,
   setCustomerPassword,
   deleteCustomers,
+  updateCustomer,
 } from '../controllers/customerController.js';import { protect, authorize } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
@@ -18,6 +19,7 @@ router.post('/set-password', setCustomerPassword);
 // Admin-only endpoints
 router.post('/', protect, authorize(['admin']), createCustomer);
 router.get('/', protect, authorize(['admin', 'executive']), getCustomers);
+router.put('/:id', protect, authorize(['admin']), updateCustomer);
 router.delete('/', protect, authorize(['admin']), deleteCustomers);
 router.get('/:id/purchases', protect, authorize(['admin', 'executive']), getCustomerPurchases);
 router.put('/:id/credentials', protect, authorize(['admin']), updateCustomerCredentials);

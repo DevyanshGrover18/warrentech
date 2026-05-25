@@ -24,6 +24,15 @@ const billingConfigSchema = new mongoose.Schema({
     outOfWarrantyTermsAndConditionsUrl: {
         type: String,
         default: ''
+    },
+    saleEditDeadlineValue: {
+        type: Number,
+        default: 24
+    },
+    saleEditDeadlineUnit: {
+        type: String,
+        enum: ['hrs', 'days'],
+        default: 'hrs'
     }
 }, { timestamps: true });
 

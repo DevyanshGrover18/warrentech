@@ -132,7 +132,7 @@ export default function DealerProducts() {
     };
 
     const handleSale = async (saleData) => {
-        const { customerName, customerPhone, customerEmail, customerAddress, customerState, customerCity, plumberName, productSelection } = saleData;
+        const { customerName, customerPhone, customerEmail, customerAddress, customerState, customerCity, plumberName, plumberPhone, productSelection } = saleData;
 
         if (!productSelection || productSelection.length === 0) return;
 
@@ -151,7 +151,8 @@ export default function DealerProducts() {
                     customerAddress,
                     customerState,
                     customerCity,
-                    plumberName
+                    plumberName,
+                    plumberPhone
                 });
             }
             toast.success(`${productIdsToSell.length} product(s) sold successfully`);

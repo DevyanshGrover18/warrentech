@@ -117,3 +117,17 @@ export const updateOutOfWarrantyConfig = asyncHandler(async (req, res) => {
         res.json(updatedConfig);
     });
 });
+
+// @desc    Update Sale Edit Deadline configuration
+// @route   PUT /api/billing-config/sale-edit-deadline
+// @access  Admin
+export const updateSaleEditDeadline = asyncHandler(async (req, res) => {
+    let config = await BillingConfig.findOne();
+    if (!config) config = await BillingConfig.create({});
+
+    config.saleEditDeadlineValue = Number(req.body.saleEditDeadlineValue) || config.saleEditDeadlineValue;
+    config.saleEditDeadlineUnit = req.body.saleEditDeadlineUnit || config.saleEditDeadlineUnit;
+
+    const updatedConfig = await config.save();
+    res.json(updatedConfig);
+});

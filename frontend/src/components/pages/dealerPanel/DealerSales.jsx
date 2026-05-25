@@ -6,6 +6,7 @@ import EditSaleModal from '../Dealers/components/EditSaleModal';
 import { Edit } from 'lucide-react';
 import SellQRScannerModal from '../../global/SellQRScannerModal';
 import SaleModal from '../Dealers/components/SaleModal';
+import axios from 'axios';
 
 const DealerSales = () => {
     const { user } = useContext(AuthContext);
@@ -16,6 +17,7 @@ const DealerSales = () => {
     const [showScannerModal, setShowScannerModal] = useState(false);
     const [showSaleModal, setShowSaleModal] = useState(false);
     const [scannedProduct, setScannedProduct] = useState(null);
+    const [billingConfig, setBillingConfig] = useState(null);
 
     // Fetch dealer sales
     const fetchSales = async () => {
@@ -24,14 +26,29 @@ const DealerSales = () => {
             return;
         }
         try {
-            const salesData = await getDealerSales(user.dealer._id);
+            const [salesData, configResponse] = await Promise.all([
+                getDealerSales(user.dealer._id),
+                axios.get(`${import.meta.env.VITE_API_URL}/api/billing-config`),
+            ]);
             setSales(salesData);
+            setBillingConfig(configResponse.data);
         } catch (error) {
             toast.error('Error fetching sales');
             console.error('Error fetching sales:', error);
         } finally {
             setLoading(false);
         }
+    };
+
+    const isEditable = (sale) => {
+        if (!billingConfig) return true;
+        const saleDate = new Date(sale.soldAt || sale.createdAt);
+        const now = new Date();
+        let deadlineMs = (billingConfig.saleEditDeadlineValue || 24) * 60 * 60 * 1000;
+        if (billingConfig.saleEditDeadlineUnit === 'days') {
+            deadlineMs = (billingConfig.saleEditDeadlineValue || 1) * 24 * 60 * 60 * 1000;
+        }
+        return (now - saleDate) <= deadlineMs;
     };
 
     useEffect(() => {
@@ -136,6 +153,9 @@ const DealerSales = () => {
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                     Sold At
                                 </th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Incentive
+                                </th>
                                 <th className="relative px-6 py-3">
                                     <span className="sr-only">Edit</span>
                                 </th>
@@ -145,7 +165,7 @@ const DealerSales = () => {
                             {sales.length === 0 ? (
                                 <tr>
                                     <td
-                                        colSpan="6"
+                                        colSpan="7"
                                         className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-center"
                                     >
                                         No sales found.
@@ -172,13 +192,18 @@ const DealerSales = () => {
                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                             {new Date(sale.soldAt).toLocaleDateString()}
                                         </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 capitalize">
+                                            {sale.incentiveStatus?.replaceAll('_', ' ') || '-'}
+                                        </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                            <button
-                                                onClick={() => handleEdit(sale)}
-                                                className="text-blue-600 hover:text-blue-900"
-                                            >
-                                                <Edit className="h-5 w-5" />
-                                            </button>
+                                            {isEditable(sale) && (
+                                                <button
+                                                    onClick={() => handleEdit(sale)}
+                                                    className="text-blue-600 hover:text-blue-900"
+                                                >
+                                                    <Edit className="h-5 w-5" />
+                                                </button>
+                                            )}
                                         </td>
                                     </tr>
                                 ))

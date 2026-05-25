@@ -3,8 +3,69 @@ import Customer from '../models/Customer.js';
 import Product from '../models/Product.js';
 import DistributorDealerProduct from '../models/DistributorDealerProduct.js';
 import Dealer from '../models/Dealer.js';
+import UserRole from '../models/UserRole.js';
+import BillingConfig from '../models/BillingConfig.js';
 import mongoose from 'mongoose';
 import { getExecutiveScope, getDealerIdsForExecutiveScope } from '../utils/executiveScope.js';
+import { isSaleFormComplete, recomputeSaleIncentive } from '../utils/incentiveUtils.js';
+import { getSalesAccessContext } from '../utils/salesAccess.js';
+
+const SALE_EDITABLE_FIELDS = [
+    'customerName',
+    'customerPhone',
+    'customerEmail',
+    'customerAddress',
+    'customerState',
+    'customerCity',
+    'plumberName',
+    'plumberPhone',
+];
+
+const applySalePayload = (sale, payload) => {
+    let hasTrackedChanges = false;
+
+    for (const field of SALE_EDITABLE_FIELDS) {
+        if (Object.prototype.hasOwnProperty.call(payload, field)) {
+            sale[field] = payload[field];
+            hasTrackedChanges = true;
+        }
+    }
+
+    return hasTrackedChanges;
+};
+
+const syncCustomerForSale = async (sale) => {
+    if (!sale.customerPhone) {
+        return sale;
+    }
+
+    let customer = await Customer.findOne({ phone: sale.customerPhone });
+
+    if (!customer) {
+        customer = await Customer.create({
+            name: sale.customerName,
+            phone: sale.customerPhone,
+            email: sale.customerEmail,
+            address: sale.customerAddress,
+            state: sale.customerState,
+            city: sale.customerCity,
+            plumberName: sale.plumberName,
+            plumberPhone: sale.plumberPhone,
+        });
+    } else {
+        customer.name = sale.customerName || customer.name;
+        customer.email = sale.customerEmail || customer.email;
+        customer.address = sale.customerAddress || customer.address;
+        customer.state = sale.customerState || customer.state;
+        customer.city = sale.customerCity || customer.city;
+        customer.plumberName = sale.plumberName || customer.plumberName;
+        customer.plumberPhone = sale.plumberPhone || customer.plumberPhone;
+        await customer.save();
+    }
+
+    sale.customer = customer._id;
+    return sale;
+};
 
 export const getDealerSales = async (req, res) => {
     try {
@@ -129,9 +190,13 @@ export const getDealerSales = async (req, res) => {
 };
 
 export const createSale = async (req, res) => {
-  const { productId, dealerId, distributorId, customerName, customerPhone, customerEmail, customerAddress, customerState, customerCity, plumberName, plumberPhone } = req.body;
+  const { productId, customerName, customerPhone, customerEmail, customerAddress, customerState, customerCity, plumberName, plumberPhone } = req.body;
 
   try {
+    if (!req.user || !['dealer', 'distributor'].includes(req.user.role)) {
+      return res.status(403).json({ message: 'Only distributors and dealers can create sales.' });
+    }
+
     const product = await Product.findById(productId);
 
     if (!product) {
@@ -154,14 +219,16 @@ export const createSale = async (req, res) => {
                 address: customerAddress,
                 state: customerState,
                 city: customerCity,
+                plumberName: plumberName,
+                plumberPhone: plumberPhone,
             });
         }
     }
 
     const sale = new Sale({
       product: productId,
-      dealer: dealerId,
-      distributor: distributorId,
+      dealer: req.user.role === 'dealer' ? req.user.dealer : null,
+      distributor: req.user.role === 'distributor' ? req.user.distributor : null,
       customerName,
       customerPhone,
       customerEmail,
@@ -170,7 +237,26 @@ export const createSale = async (req, res) => {
       customerCity,
       plumberName,
       plumberPhone,
-      customer: customer ? customer._id : null
+      customer: customer ? customer._id : null,
+      createdByRole: req.user.role,
+      createdByUserId: req.user.id,
+      createdByEntityType: req.user.role,
+      createdByEntityId: req.user.role === 'dealer' ? req.user.dealer : req.user.distributor,
+      incentiveStatus: isSaleFormComplete({
+        customerName,
+        customerPhone,
+        customerEmail,
+        customerAddress,
+        customerState,
+        customerCity,
+        plumberName,
+        plumberPhone,
+      }) ? 'pending_approval' : 'incomplete',
+    });
+
+    await recomputeSaleIncentive(sale, {
+      editedByRole: req.user.role,
+      editedByUserId: req.user.id,
     });
 
     product.sold = true;
@@ -274,7 +360,6 @@ export const getSalesByDealer = async (req, res) => {
 export const updateSale = async (req, res) => {
   try {
     const { saleId } = req.params;
-    const { customerName, customerPhone, customerEmail, customerAddress, plumberName } = req.body;
 
     const sale = await Sale.findById(saleId);
 
@@ -282,11 +367,59 @@ export const updateSale = async (req, res) => {
       return res.status(404).json({ message: 'Sale not found' });
     }
 
-    sale.customerName = customerName || sale.customerName;
-    sale.customerPhone = customerPhone || sale.customerPhone;
-    sale.customerEmail = customerEmail || sale.customerEmail;
-    sale.customerAddress = customerAddress || sale.customerAddress;
-    sale.plumberName = plumberName || sale.plumberName;
+    if (!req.user) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    const isOriginalSeller =
+      sale.createdByUserId &&
+      sale.createdByUserId.toString() === req.user.id &&
+      sale.createdByRole === req.user.role;
+
+    const salesAccess = await getSalesAccessContext(req.user);
+    const canAdminEdit = req.user.role === 'admin' || salesAccess.canAccessSales;
+
+    if (!isOriginalSeller && !canAdminEdit) {
+      return res.status(403).json({ message: 'You do not have permission to edit this sale.' });
+    }
+
+    // Check deadline for non-admin original sellers
+    if (!canAdminEdit && isOriginalSeller) {
+        const config = await BillingConfig.findOne();
+        if (config) {
+            const saleDate = new Date(sale.soldAt || sale.createdAt);
+            const now = new Date();
+            let deadlineMs = config.saleEditDeadlineValue * 60 * 60 * 1000; // default to hrs
+            if (config.saleEditDeadlineUnit === 'days') {
+                deadlineMs = config.saleEditDeadlineValue * 24 * 60 * 60 * 1000;
+            }
+            
+            if (now - saleDate > deadlineMs) {
+                return res.status(403).json({ message: 'The time period for editing this sale has expired.' });
+            }
+        }
+    }
+
+    const hasTrackedChanges = applySalePayload(sale, req.body);
+
+    if (hasTrackedChanges) {
+      if (!isOriginalSeller && sale.incentiveStatus !== 'approved') {
+        sale.adminTouchedForm = true;
+      }
+
+      if (!sale.adminTouchedForm || sale.incentiveStatus === 'approved') {
+        await recomputeSaleIncentive(sale, {
+          editedByRole: req.user.role,
+          editedByUserId: req.user.id,
+        });
+      } else {
+        sale.incentiveEligible = false;
+        sale.incentiveAmount = 0;
+        sale.incentiveStatus = 'not_applicable';
+      }
+    }
+
+    await syncCustomerForSale(sale);
 
     const updatedSale = await sale.save();
     res.json(updatedSale);
@@ -392,6 +525,9 @@ export const getAllSales = async (req, res) => {
                     path: 'model'
                 }
             })
+            .populate('dealer', 'name dealerId walletBalance')
+            .populate('distributor', 'name distributorId walletBalance')
+            .populate('customer', 'name phone email address state city')
             .sort({ soldAt: -1 });
         res.json(sales);
     } catch (error) {

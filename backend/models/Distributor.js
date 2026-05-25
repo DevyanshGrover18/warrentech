@@ -76,6 +76,11 @@ const distributorSchema = new mongoose.Schema({
     executive: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Executive'
+    },
+    walletBalance: {
+        type: Number,
+        default: 0,
+        min: 0
     }
 }, {
     timestamps: true
