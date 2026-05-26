@@ -4,10 +4,11 @@ import { incentiveService } from '../../../services/incentiveService';
 import { AuthContext } from '../../../context/AuthContext';
 
 const statusOptions = ['all', 'incomplete', 'pending_approval', 'approved', 'rejected'];
+const actionableStatuses = ['incomplete', 'pending_approval'];
 
 export default function Incentives() {
   const { isAdmin } = useContext(AuthContext);
-  const [status, setStatus] = useState('pending_approval');
+  const [status, setStatus] = useState('all');
   const [incentives, setIncentives] = useState([]);
   const [settings, setSettings] = useState({
     distributorPerSaleIncentive: 0,
@@ -16,6 +17,7 @@ export default function Incentives() {
   const [loading, setLoading] = useState(true);
   const [savingSettings, setSavingSettings] = useState(false);
   const [actingSaleId, setActingSaleId] = useState(null);
+  const [rejectionNotes, setRejectionNotes] = useState({});
 
   const fetchData = async () => {
     try {
@@ -54,7 +56,7 @@ export default function Incentives() {
   };
 
   const handleReject = async (saleId) => {
-    const note = (window.prompt('Enter rejection reason (Required)') || '').trim();
+    const note = (rejectionNotes[saleId] || '').trim();
 
     if (!note) {
       toast.error('A rejection reason is required.');
@@ -65,6 +67,7 @@ export default function Incentives() {
       setActingSaleId(saleId);
       await incentiveService.reject(saleId, note);
       toast.success('Incentive rejected');
+      setRejectionNotes((prev) => ({ ...prev, [saleId]: '' }));
       fetchData();
     } catch (error) {
       toast.error(error.response?.data?.message || 'Failed to reject incentive');
@@ -175,6 +178,7 @@ export default function Incentives() {
               <tbody className="divide-y divide-gray-200 bg-white">
                 {incentives.map((sale) => {
                   const seller = sale.incentiveType === 'dealer' ? sale.dealer : sale.distributor;
+                  const isActionable = actionableStatuses.includes(sale.incentiveStatus);
 
                   return (
                     <tr key={sale._id}>
@@ -191,8 +195,21 @@ export default function Incentives() {
                       <td className="px-4 py-4 text-sm text-gray-900">₹{sale.incentiveAmount || 0}</td>
                       <td className="px-4 py-4 text-sm capitalize text-gray-700">{sale.incentiveStatus?.replaceAll('_', ' ')}</td>
                       <td className="px-4 py-4 text-sm text-gray-700">
-                        {sale.incentiveStatus === 'pending_approval' ? (
-                          <div className="flex items-center gap-2">
+                        {isActionable ? (
+                          <div className="flex min-w-[280px] flex-col gap-2">
+                            <textarea
+                              value={rejectionNotes[sale._id] || ''}
+                              onChange={(e) =>
+                                setRejectionNotes((prev) => ({
+                                  ...prev,
+                                  [sale._id]: e.target.value,
+                                }))
+                              }
+                              rows={2}
+                              placeholder="Rejection reason (required to reject)"
+                              className="w-full rounded-md border border-gray-300 px-3 py-2 text-xs text-gray-700"
+                            />
+                            <div className="flex items-center gap-2">
                             <button
                               onClick={() => handleApprove(sale._id)}
                               disabled={actingSaleId === sale._id}
@@ -207,6 +224,7 @@ export default function Incentives() {
                             >
                               Reject
                             </button>
+                            </div>
                           </div>
                         ) : (
                           <span className="text-xs text-gray-500">

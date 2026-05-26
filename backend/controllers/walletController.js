@@ -23,16 +23,45 @@ const requireSalesManager = async (user) => {
     return access;
 };
 
+const buildCreatedAtFilter = ({ startDate, endDate } = {}) => {
+    const createdAt = {};
+
+    if (startDate) {
+        const parsedStartDate = new Date(`${startDate}T00:00:00`);
+        if (!Number.isNaN(parsedStartDate.getTime())) {
+            createdAt.$gte = parsedStartDate;
+        }
+    }
+
+    if (endDate) {
+        const parsedEndDate = new Date(`${endDate}T23:59:59.999`);
+        if (!Number.isNaN(parsedEndDate.getTime())) {
+            createdAt.$lte = parsedEndDate;
+        }
+    }
+
+    return Object.keys(createdAt).length ? createdAt : null;
+};
+
 const getWalletPayload = async (entityType, entityId, options = {}) => {
     const Model = getEntityModel(entityType);
     if (!Model) return null;
 
-    const { transactionsLimit } = options;
+    const { transactionsLimit, startDate, endDate } = options;
 
     const entity = await Model.findById(entityId).lean();
     if (!entity) return null;
 
-    const transactionQuery = WalletTransaction.find({ entityType, entityId })
+    const createdAtFilter = buildCreatedAtFilter({ startDate, endDate });
+    const transactionFilters = { entityType, entityId };
+    const payoutFilters = { entityType, entityId };
+
+    if (createdAtFilter) {
+        transactionFilters.createdAt = createdAtFilter;
+        payoutFilters.createdAt = createdAtFilter;
+    }
+
+    const transactionQuery = WalletTransaction.find(transactionFilters)
         .sort({ createdAt: -1 })
         .populate('saleId', 'customerName customerPhone soldAt createdAt');
 
@@ -42,7 +71,7 @@ const getWalletPayload = async (entityType, entityId, options = {}) => {
 
     const transactions = await transactionQuery.lean();
 
-    const payoutRequests = await WalletPayoutRequest.find({ entityType, entityId })
+    const payoutRequests = await WalletPayoutRequest.find(payoutFilters)
         .sort({ createdAt: -1 })
         .populate('walletTransactionId')
         .lean();
@@ -97,8 +126,8 @@ export const getWalletByEntity = async (req, res) => {
         await requireSalesManager(req.user);
 
         const { entityType, entityId } = req.params;
-        const { transactionsLimit } = req.query;
-        const payload = await getWalletPayload(entityType, entityId, { transactionsLimit });
+        const { transactionsLimit, startDate, endDate } = req.query;
+        const payload = await getWalletPayload(entityType, entityId, { transactionsLimit, startDate, endDate });
 
         if (!payload) {
             return res.status(404).json({ message: 'Wallet owner not found.' });
@@ -118,8 +147,8 @@ export const getOwnWallet = async (req, res) => {
 
         const entityType = req.user.role;
         const entityId = req.user.role === 'dealer' ? req.user.dealer : req.user.distributor;
-        const { transactionsLimit } = req.query;
-        const payload = await getWalletPayload(entityType, entityId, { transactionsLimit });
+        const { transactionsLimit, startDate, endDate } = req.query;
+        const payload = await getWalletPayload(entityType, entityId, { transactionsLimit, startDate, endDate });
 
         if (!payload) {
             return res.status(404).json({ message: 'Wallet owner not found.' });

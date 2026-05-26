@@ -78,7 +78,7 @@ export const recomputeSaleIncentive = async (sale, options = {}) => {
         if (sale.incentiveStatus !== 'approved' && sale.incentiveStatus !== 'rejected') {
             sale.incentiveStatus = 'incomplete';
         }
-        sale.incentiveAmount = 0;
+        sale.incentiveAmount = await getIncentiveAmountForType(incentiveType);
         return sale;
     }
 

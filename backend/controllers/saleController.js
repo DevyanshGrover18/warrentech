@@ -5,10 +5,12 @@ import DistributorDealerProduct from '../models/DistributorDealerProduct.js';
 import Dealer from '../models/Dealer.js';
 import UserRole from '../models/UserRole.js';
 import BillingConfig from '../models/BillingConfig.js';
+import WalletTransaction from '../models/WalletTransaction.js';
 import mongoose from 'mongoose';
 import { getExecutiveScope, getDealerIdsForExecutiveScope } from '../utils/executiveScope.js';
 import { isSaleFormComplete, recomputeSaleIncentive } from '../utils/incentiveUtils.js';
 import { getSalesAccessContext } from '../utils/salesAccess.js';
+import { applyWalletTransaction } from '../utils/walletUtils.js';
 
 const SALE_EDITABLE_FIELDS = [
     'customerName',
@@ -65,6 +67,43 @@ const syncCustomerForSale = async (sale) => {
 
     sale.customer = customer._id;
     return sale;
+};
+
+const revokeApprovedIncentiveIfNeeded = async (sale, performedBy) => {
+    if (sale.incentiveStatus !== 'approved' || !sale.createdByEntityType || !sale.createdByEntityId) {
+        return;
+    }
+
+    const creditedTransaction = await WalletTransaction.findOne({
+        source: 'sale_incentive',
+        saleId: sale._id,
+        type: 'credit',
+    }).sort({ createdAt: -1 });
+
+    if (!creditedTransaction) {
+        return;
+    }
+
+    const existingReversal = await WalletTransaction.findOne({
+        source: 'sale_incentive',
+        saleId: sale._id,
+        type: 'debit',
+    });
+
+    if (existingReversal) {
+        return;
+    }
+
+    await applyWalletTransaction({
+        entityType: sale.createdByEntityType,
+        entityId: sale.createdByEntityId,
+        type: 'debit',
+        source: 'sale_incentive',
+        amount: creditedTransaction.amount,
+        saleId: sale._id,
+        notes: `Reversed incentive for sale ${sale._id} after admin edit`,
+        performedBy,
+    });
 };
 
 export const getDealerSales = async (req, res) => {
@@ -403,11 +442,12 @@ export const updateSale = async (req, res) => {
     const hasTrackedChanges = applySalePayload(sale, req.body);
 
     if (hasTrackedChanges) {
-      if (!isOriginalSeller && sale.incentiveStatus !== 'approved') {
+      if (!isOriginalSeller && canAdminEdit) {
         sale.adminTouchedForm = true;
+        await revokeApprovedIncentiveIfNeeded(sale, req.user.id);
       }
 
-      if (!sale.adminTouchedForm || sale.incentiveStatus === 'approved') {
+      if (!sale.adminTouchedForm) {
         await recomputeSaleIncentive(sale, {
           editedByRole: req.user.role,
           editedByUserId: req.user.id,
@@ -416,6 +456,11 @@ export const updateSale = async (req, res) => {
         sale.incentiveEligible = false;
         sale.incentiveAmount = 0;
         sale.incentiveStatus = 'not_applicable';
+        sale.incentiveApprovedBy = null;
+        sale.incentiveApprovedAt = null;
+        sale.incentiveRejectedBy = null;
+        sale.incentiveRejectedAt = null;
+        sale.incentiveRejectionNote = '';
       }
     }
 
@@ -490,6 +535,13 @@ export const getAssignedProducts = async (req, res) => {
           customerName: s.customerName || null,
           customerPhone: s.customerPhone || null,
           customerEmail: s.customerEmail || null,
+          customerAddress: s.customerAddress || null,
+          customerState: s.customerState || null,
+          customerCity: s.customerCity || null,
+          plumberName: s.plumberName || null,
+          plumberPhone: s.plumberPhone || null,
+          adminTouchedForm: Boolean(s.adminTouchedForm),
+          incentiveStatus: s.incentiveStatus || null,
           soldAt: s.soldAt || s.saleDate || s.createdAt || null,
           _id: s._id
         };

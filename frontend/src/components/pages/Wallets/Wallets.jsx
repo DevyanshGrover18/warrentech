@@ -1,3 +1,4 @@
+import axios from 'axios';
 import { useContext, useEffect, useMemo, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { walletService } from '../../../services/walletService';
@@ -34,22 +35,30 @@ export default function Wallets() {
   const fetchOverview = async () => {
     try {
       setLoading(true);
-      const [data, configResponse] = await Promise.all([
+      const [overviewResult, configResult] = await Promise.allSettled([
         walletService.getOverview({
           transactionsLimit: showAllOverviewTransactions ? 'all' : 5,
         }),
-        axios.get(`${import.meta.env.VITE_API_URL}/api/billing-config`),
+        isAdmin ? axios.get(`${import.meta.env.VITE_API_URL}/api/billing-config`) : Promise.resolve(null),
       ]);
+
+      if (overviewResult.status !== 'fulfilled') {
+        throw overviewResult.reason;
+      }
+
+      const data = overviewResult.value;
+
       setOverview(data || {
         distributors: [],
         dealers: [],
         recentTransactions: [],
         payoutRequests: [],
       });
-      if (configResponse.data) {
+
+      if (configResult.status === 'fulfilled' && configResult.value?.data) {
         setSaleEditDeadline({
-          value: configResponse.data.saleEditDeadlineValue || 24,
-          unit: configResponse.data.saleEditDeadlineUnit || 'hrs',
+          value: configResult.value.data.saleEditDeadlineValue || 24,
+          unit: configResult.value.data.saleEditDeadlineUnit || 'hrs',
         });
       }
     } catch (error) {
@@ -81,7 +90,7 @@ export default function Wallets() {
 
   useEffect(() => {
     fetchOverview();
-  }, [showAllOverviewTransactions]);
+  }, [showAllOverviewTransactions, isAdmin]);
 
   const loadWalletDetails = async (entityType, entityId, entityName) => {
     setSelectedWallet({ entityType, entityId, entityName });

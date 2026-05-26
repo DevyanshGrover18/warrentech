@@ -1,9 +1,11 @@
 import Sale from '../models/Sale.js';
 import WalletTransaction from '../models/WalletTransaction.js';
 import IncentiveSetting from '../models/IncentiveSetting.js';
-import { ensureIncentiveSettings } from '../utils/incentiveUtils.js';
+import { ensureIncentiveSettings, getIncentiveAmountForType } from '../utils/incentiveUtils.js';
 import { getSalesAccessContext } from '../utils/salesAccess.js';
 import { applyWalletTransaction } from '../utils/walletUtils.js';
+
+const ACTIONABLE_STATUSES = ['pending_approval', 'incomplete'];
 
 const requireSalesManager = async (user) => {
     const access = await getSalesAccessContext(user);
@@ -88,8 +90,8 @@ export const approveIncentive = async (req, res) => {
             return res.status(404).json({ message: 'Sale not found.' });
         }
 
-        if (sale.incentiveStatus !== 'pending_approval') {
-            return res.status(400).json({ message: 'Only pending incentives can be approved.' });
+        if (!ACTIONABLE_STATUSES.includes(sale.incentiveStatus)) {
+            return res.status(400).json({ message: 'Only pending or incomplete incentives can be approved.' });
         }
 
         const existingTransaction = await WalletTransaction.findOne({
@@ -103,18 +105,23 @@ export const approveIncentive = async (req, res) => {
 
         const entityType = sale.incentiveType;
         const entityId = sale.createdByEntityId;
+        const incentiveAmount = sale.incentiveAmount > 0
+            ? sale.incentiveAmount
+            : await getIncentiveAmountForType(entityType);
 
         const { transaction } = await applyWalletTransaction({
             entityType,
             entityId,
             type: 'credit',
             source: 'sale_incentive',
-            amount: sale.incentiveAmount,
+            amount: incentiveAmount,
             saleId: sale._id,
             notes: `Approved incentive for sale ${sale._id}`,
             performedBy: req.user.id,
         });
 
+        sale.incentiveAmount = incentiveAmount;
+        sale.incentiveEligible = true;
         sale.incentiveStatus = 'approved';
         sale.incentiveApprovedBy = req.user.id;
         sale.incentiveApprovedAt = new Date();
@@ -138,8 +145,8 @@ export const rejectIncentive = async (req, res) => {
             return res.status(404).json({ message: 'Sale not found.' });
         }
 
-        if (sale.incentiveStatus !== 'pending_approval') {
-            return res.status(400).json({ message: 'Only pending incentives can be rejected.' });
+        if (!ACTIONABLE_STATUSES.includes(sale.incentiveStatus)) {
+            return res.status(400).json({ message: 'Only pending or incomplete incentives can be rejected.' });
         }
 
         const note = (req.body.note || '').trim();

@@ -4,7 +4,14 @@ import { X, Edit } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_API_URL;
 
-const EditSaleModal = ({ isOpen, onClose, sale, onSave, initialMode = 'edit' }) => {
+const EditSaleModal = ({
+  isOpen,
+  onClose,
+  sale,
+  onSave,
+  initialMode = 'edit',
+  backdropClassName = 'bg-black/60',
+}) => {
   const [mode, setMode] = useState(initialMode);
   const [formData, setFormData] = useState({
     customerName: '',
@@ -84,16 +91,25 @@ const EditSaleModal = ({ isOpen, onClose, sale, onSave, initialMode = 'edit' }) 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed z-[100] inset-0 overflow-y-auto">
-      <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:p-0">
-        <div className="fixed inset-0 bg-black/60 transition-opacity" onClick={onClose}></div>
-        
-        <div className="inline-block align-middle bg-white rounded-xl text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-2xl sm:w-full">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+      <div
+        className={`absolute inset-0 transition-opacity ${backdropClassName}`}
+        onClick={onClose}
+      ></div>
+
+      <div className="relative z-10 max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl bg-white text-left shadow-2xl">
           <div className="bg-white px-6 pt-5 pb-4 sm:p-8 sm:pb-4">
             <div className="flex justify-between items-center mb-6">
-              <h3 className="text-2xl font-bold text-gray-900">
-                {mode === 'edit' ? 'Edit Sale Details' : 'Customer Details'}
-              </h3>
+              <div className="flex items-center gap-3">
+                <h3 className="text-2xl font-bold text-gray-900">
+                  {mode === 'edit' ? 'Edit Sale Details' : 'Customer Details'}
+                </h3>
+                {sale?.adminTouchedForm && (
+                  <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-amber-800">
+                    Edited by admin
+                  </span>
+                )}
+              </div>
               <div className="flex items-center gap-2">
                 {mode === 'view' && (
                   <button
@@ -269,7 +285,6 @@ const EditSaleModal = ({ isOpen, onClose, sale, onSave, initialMode = 'edit' }) 
               </div>
             )}
           </div>
-        </div>
       </div>
     </div>
   );

@@ -113,13 +113,13 @@ export function SideBar({ sidebarOpen, toggleSidebar, totalNotifications }) {
   const [openDropdowns, setOpenDropdowns] = useState({});
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, logout, hasPrivilege, isAdmin } = useContext(AuthContext);
+  const { user, logout, hasAnyPrivilege, isAdmin } = useContext(AuthContext);
 
   const pathToSection = {
     '/management': 'management',
     '/factory-management': 'factories',
     '/orders': 'orders',
-    '/products': 'products',
+    '/inventory': 'products',
     '/distributors': 'distributors',
     '/dealers': 'dealers',
     '/customers': 'customers',
@@ -135,12 +135,7 @@ export function SideBar({ sidebarOpen, toggleSidebar, totalNotifications }) {
   const canAccessSection = (section) => {
     if (!section) return true;
     if (isAdmin) return true;
-    return (
-      hasPrivilege(section, 'full') ||
-      hasPrivilege(section, 'add') ||
-      hasPrivilege(section, 'modify') ||
-      hasPrivilege(section, 'delete')
-    );
+    return hasAnyPrivilege(section);
   };
 
   useEffect(() => {

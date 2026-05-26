@@ -535,7 +535,12 @@ export default function Sales() {
 
       {showModelModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/40" onClick={closeModelModal}></div>
+          <div
+            className={`absolute inset-0 transition-colors ${
+              selectedCustomerProduct ? "bg-black/10" : "bg-black/40"
+            }`}
+            onClick={selectedCustomerProduct ? undefined : closeModelModal}
+          ></div>
           <div className="relative z-10 bg-white rounded-lg shadow-lg w-full max-w-7xl max-h-[90vh] flex flex-col">
             <div className="p-4 border-b border-gray-200 flex items-center justify-between">
               <div>
@@ -788,6 +793,7 @@ export default function Sales() {
         sale={selectedCustomerProduct?.sale || {}}
         onSave={handleSaleSave}
         initialMode="view"
+        backdropClassName="bg-transparent"
       />
 
       <EditProductModal
