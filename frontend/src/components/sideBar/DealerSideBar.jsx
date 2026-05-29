@@ -4,7 +4,8 @@ import {
   LogOut,
   LayoutDashboard,
   Package,
-  ShoppingBag
+  ShoppingBag,
+  Users
 } from 'lucide-react';
 import { AuthContext } from '../../context/AuthContext';
 
@@ -16,7 +17,13 @@ const dealerSidebarItems = [
         color: 'blue'
     },
     {
-        title: 'Products',
+        title: 'Sub Dealers',
+        path: '/dealer/sub-dealers',
+        icon: Users,
+        color: 'purple'
+    },
+    {
+        title: 'Inventory',
         path: '/dealer/products',
         icon: Package,
         color: 'yellow'

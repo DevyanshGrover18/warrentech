@@ -17,6 +17,7 @@ import DealerLayout from "./components/global/DealerLayout";
 import DealerDashboard from "./components/pages/dealerPanel/DealerDashboard";
 import DealerProducts from "./components/pages/dealerPanel/DealerProducts";
 import DealerSales from "./components/pages/dealerPanel/DealerSales";
+import SubDealers from "./components/pages/SubDealers/SubDealers";
 import AdminCustomers from "../src/components/pages/customer/components/AdminCustomers.jsx";
 import Orders from "./components/pages/Orders/Orders";
 import Products from "./components/pages/Products/Products";
@@ -47,6 +48,7 @@ import { AuthContext } from "./context/AuthContext";
 import FactoryLayout from "./components/global/FactoryLayout";
 import DistributorLayout from "./components/global/DistributorLayout";
 import ExecutiveLayout from "./components/global/ExecutiveLayout";
+import SubDealerLayout from "./components/global/SubDealerLayout";
 import CustomerPurchases from "./components/pages/customer/CustomerPurchases.jsx";
 import CustomerDashboard from "./components/pages/customer/CustomerDashboard";
 import CustomerRequests from "./components/pages/customer/CustomerRequests";
@@ -57,8 +59,28 @@ import ExecutiveDealers from "./components/pages/Executive/Dealers.jsx";
 import ExecutiveCustomers from "./components/pages/Executive/Customers.jsx";
 import Executives from "./components/pages/Management/Executives.jsx";
 import Incentives from "./components/pages/Incentives/Incentives.jsx";
+import AllIncentives from "./components/pages/Incentives/AllIncentives.jsx";
 import Wallets from "./components/pages/Wallets/Wallets.jsx";
+import AllWalletActivity from "./components/pages/Wallets/AllWalletActivity.jsx";
 import MyWallet from "./components/pages/Wallets/MyWallet.jsx";
+
+const SubDealerProtectedRoute = ({ children }) => {
+  const { isSubDealerAuthenticated, loading } = useContext(AuthContext);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
+      </div>
+    );
+  }
+
+  if (!isSubDealerAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+
+  return children;
+};
 
 const AdminProtectedRoute = ({ children }) => {
   const { isAuthenticated, loading, isAdmin } = useContext(AuthContext);
@@ -135,6 +157,7 @@ const App = () => {
             <Route path="dealers" element={<ExecutiveDealers />} />
             <Route path="customers" element={<ExecutiveCustomers />} />
             <Route path="replacement" element={<Replacement />} />
+            <Route path="sales" element={<Sales />} />
           </Route>
 
           <Route
@@ -143,6 +166,21 @@ const App = () => {
               <DealerProtectedRoute>
                 <DealerLayout />
               </DealerProtectedRoute>
+            }
+          >
+            <Route path="dashboard" element={<DealerDashboard />} />
+            <Route path="sub-dealers" element={<SubDealers />} />
+            <Route path="products" element={<DealerProducts />} />
+            <Route path="sales" element={<DealerSales />} />
+            <Route path="wallet" element={<MyWallet />} />
+          </Route>
+
+          <Route
+            path="/sub-dealer"
+            element={
+              <SubDealerProtectedRoute>
+                <SubDealerLayout />
+              </SubDealerProtectedRoute>
             }
           >
             <Route path="dashboard" element={<DealerDashboard />} />
@@ -237,10 +275,26 @@ const App = () => {
               }
             />
             <Route
+              path="incentives/all"
+              element={
+                <ProtectedSection section="sales">
+                  <AllIncentives />
+                </ProtectedSection>
+              }
+            />
+            <Route
               path="wallets"
               element={
                 <ProtectedSection section="sales">
                   <Wallets />
+                </ProtectedSection>
+              }
+            />
+            <Route
+              path="wallets/all"
+              element={
+                <ProtectedSection section="sales">
+                  <AllWalletActivity />
                 </ProtectedSection>
               }
             />
@@ -257,6 +311,14 @@ const App = () => {
               element={
                 <ProtectedSection section="dealers">
                   <Dealers />
+                </ProtectedSection>
+              }
+            />
+            <Route
+              path="sub-dealers"
+              element={
+                <ProtectedSection section="dealers">
+                  <SubDealers />
                 </ProtectedSection>
               }
             />

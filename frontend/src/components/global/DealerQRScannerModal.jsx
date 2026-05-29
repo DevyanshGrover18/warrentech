@@ -76,14 +76,21 @@ function DealerQRScannerModal({ isOpen, onClose, onProductAssigned }) {
     const assignProduct = async () => {
         try {
             setLoading(true);
-            await axios.put(`${API_URL}/api/dealer/products/assign-by-serial`, 
-                { serialNumber: productDetails.serialNumber },
-                {
-                    headers: {
-                        Authorization: `Bearer ${user.token}`
-                    }
+            const isSubDealer = user?.role === 'sub_dealer';
+            const endpoint = isSubDealer 
+                ? `${API_URL}/api/dealer-sub-dealer-products/assign-by-serial`
+                : `${API_URL}/api/dealer/products/assign-by-serial`;
+            
+            const payload = { serialNumber: productDetails.serialNumber };
+            if (isSubDealer) {
+                payload.subDealerId = user.subDealer?._id;
+            }
+
+            await axios.post(endpoint, payload, {
+                headers: {
+                    Authorization: `Bearer ${user.token}`
                 }
-            );
+            });
             toast.success('Product assigned successfully!');
             onProductAssigned?.();
             handleClose();

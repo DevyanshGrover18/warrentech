@@ -1,6 +1,7 @@
 import Executive from "../models/Executive.js";
 import Distributor from "../models/Distributor.js";
 import Dealer from "../models/Dealer.js";
+import SubDealer from "../models/SubDealer.js";
 import User from "../models/User.js";
 import bcrypt from "bcryptjs";
 import mongoose from "mongoose";
@@ -11,6 +12,7 @@ const sanitizeAssignmentRows = (assignedDistributors = []) =>
     .map((row) => ({
       distributorId: row.distributorId,
       dealers: (row.dealerIds || row.dealers || []).filter(Boolean),
+      subDealers: (row.subDealerIds || row.subDealers || []).filter(Boolean),
     }));
 
 const buildExecutivePayload = (body, { includePassword = false } = {}) => {
@@ -54,6 +56,12 @@ const hydrateExecutive = async (executiveDoc) => {
     : [];
   const dealersById = new Map(dealers.map((dealer) => [dealer._id.toString(), dealer]));
 
+  const allSubDealerIds = assignments.flatMap((row) => row.subDealers || []).filter(Boolean);
+  const subDealers = allSubDealerIds.length
+    ? await SubDealer.find({ _id: { $in: allSubDealerIds } }).select("-password").lean()
+    : [];
+  const subDealersById = new Map(subDealers.map((subDealer) => [subDealer._id.toString(), subDealer]));
+
   const populatedDistributors = assignments
     .map((row) => {
       const distributor = distributorsById.get(row.distributorId.toString());
@@ -63,6 +71,9 @@ const hydrateExecutive = async (executiveDoc) => {
         ...distributor,
         dealers: (row.dealers || [])
           .map((dealerId) => dealersById.get(dealerId.toString()))
+          .filter(Boolean),
+        subDealers: (row.subDealers || [])
+          .map((subDealerId) => subDealersById.get(subDealerId.toString()))
           .filter(Boolean),
       };
     })
@@ -74,6 +85,10 @@ const hydrateExecutive = async (executiveDoc) => {
     distributorCount: populatedDistributors.length,
     dealerCount: populatedDistributors.reduce(
       (count, distributor) => count + (distributor.dealers?.length || 0),
+      0,
+    ),
+    subDealerCount: populatedDistributors.reduce(
+      (count, distributor) => count + (distributor.subDealers?.length || 0),
       0,
     ),
   };

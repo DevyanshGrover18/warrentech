@@ -17,6 +17,8 @@ const extractDistributorIds = (assignedDistributors = []) =>
     .filter(Boolean);
 const extractDealerIds = (assignedDistributors = []) =>
   assignedDistributors.flatMap((assignment) => assignment?.dealers || []).filter(Boolean);
+const extractSubDealerIds = (assignedDistributors = []) =>
+  assignedDistributors.flatMap((assignment) => assignment?.subDealers || []).filter(Boolean);
 
 export const getExecutiveScope = async (user) => {
   if (!user || user.role !== "executive") {
@@ -26,6 +28,8 @@ export const getExecutiveScope = async (user) => {
       distributorObjectIds: [],
       dealerIds: [],
       dealerObjectIds: [],
+      subDealerIds: [],
+      subDealerObjectIds: [],
       isExecutive: false,
     };
   }
@@ -48,16 +52,21 @@ export const getExecutiveScope = async (user) => {
       distributorObjectIds: [],
       dealerIds: [],
       dealerObjectIds: [],
+      subDealerIds: [],
+      subDealerObjectIds: [],
       isExecutive: true,
     };
   }
 
   const distributorRefs = extractDistributorIds(executive.assignedDistributors || []);
   const dealerRefs = extractDealerIds(executive.assignedDistributors || []);
+  const subDealerRefs = extractSubDealerIds(executive.assignedDistributors || []);
   const distributorIds = normalizeIds(distributorRefs);
   const distributorObjectIds = normalizeObjectIds(distributorRefs);
   const dealerIds = normalizeIds(dealerRefs);
   const dealerObjectIds = normalizeObjectIds(dealerRefs);
+  const subDealerIds = normalizeIds(subDealerRefs);
+  const subDealerObjectIds = normalizeObjectIds(subDealerRefs);
 
   return {
     executive,
@@ -65,6 +74,8 @@ export const getExecutiveScope = async (user) => {
     distributorObjectIds,
     dealerIds,
     dealerObjectIds,
+    subDealerIds,
+    subDealerObjectIds,
     isExecutive: true,
   };
 };
@@ -89,6 +100,16 @@ export const getDealerIdsForExecutiveScope = async (user) => {
   return scope.dealerIds;
 };
 
+export const getSubDealerIdsForExecutiveScope = async (user) => {
+  const scope = await getExecutiveScope(user);
+
+  if (!scope.isExecutive || scope.distributorIds.length === 0) {
+    return [];
+  }
+
+  return scope.subDealerIds;
+};
+
 export const getCustomerIdsForExecutiveScope = async (user) => {
   const scope = await getExecutiveScope(user);
 
@@ -97,11 +118,13 @@ export const getCustomerIdsForExecutiveScope = async (user) => {
   }
 
   const dealerIds = await getDealerIdsForExecutiveScope(user);
+  const subDealerIds = await getSubDealerIdsForExecutiveScope(user);
 
   const sales = await Sale.find({
     $or: [
       { distributor: { $in: scope.distributorIds } },
       { dealer: { $in: dealerIds } },
+      { sub_dealer: { $in: subDealerIds } },
     ],
     customer: { $ne: null },
   })

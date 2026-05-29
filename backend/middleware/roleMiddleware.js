@@ -32,6 +32,7 @@ const verifyToken = (req, res, next) => {
 
     try {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        console.log('Decoded Token:', decoded);
         req.user = decoded;
         next();
     } catch (error) {
@@ -43,15 +44,22 @@ const checkPermission = (section, permission) => {
     return async (req, res, next) => {
         try {
             const user = await UserRole.findById(req.user.id);
+            const executiveAllowedSections = ['products', 'distributors', 'dealers', 'customers', 'replacement', 'sales'];
+            const entityAllowedSections = ['products', 'sales', 'customers', 'dealers'];
 
-            // If a UserRole document is not found, allow access for users with 'admin' role
+            // If a UserRole document is not found, check role from token
             if (!user) {
                 if (req.user.role === 'admin') {
                     req.userPermissions = adminPermissions;
                     return next();
                 }
 
-                if (req.user.role === 'executive' && ['products', 'distributors', 'dealers', 'customers', 'replacement'].includes(section)) {
+                if (req.user.role === 'executive' && executiveAllowedSections.includes(section)) {
+                    return next();
+                }
+
+                // Allow distributors, dealers and sub_dealers access to their relevant sections
+                if (['distributor', 'dealer', 'sub_dealer'].includes(req.user.role) && entityAllowedSections.includes(section)) {
                     return next();
                 }
 
@@ -118,8 +126,9 @@ const checkSectionAccess = (section) => {
         try {
             const user = await UserRole.findById(req.user.id);
             const executiveAllowedSections = ['products', 'distributors', 'dealers', 'customers', 'replacement', 'sales'];
+            const entityAllowedSections = ['products', 'sales', 'customers', 'dealers'];
 
-            // If a UserRole document is not found, allow access for users with 'admin' role
+            // If a UserRole document is not found, check role from token
             if (!user) {
                 if (req.user.role === 'admin') {
                     req.userPermissions = adminPermissions;
@@ -127,6 +136,11 @@ const checkSectionAccess = (section) => {
                 }
 
                 if (req.user.role === 'executive' && executiveAllowedSections.includes(section)) {
+                    return next();
+                }
+
+                // Allow distributors, dealers and sub_dealers access to their relevant sections
+                if (['distributor', 'dealer', 'sub_dealer'].includes(req.user.role) && entityAllowedSections.includes(section)) {
                     return next();
                 }
 
@@ -159,4 +173,58 @@ const checkSectionAccess = (section) => {
     };
 };
 
-export { verifyToken, checkPermission, checkMultiplePermissions, checkSectionAccess };
+const checkAnySectionAccess = (sections) => {
+    return async (req, res, next) => {
+        try {
+            const user = await UserRole.findById(req.user.id);
+            const executiveAllowedSections = ['products', 'distributors', 'dealers', 'customers', 'replacement', 'sales'];
+            const entityAllowedSections = ['products', 'sales', 'customers', 'dealers'];
+
+            // If a UserRole document is not found, check role from token
+            if (!user) {
+                if (req.user.role === 'admin') {
+                    req.userPermissions = adminPermissions;
+                    return next();
+                }
+
+                const hasExecutiveAccess = sections.some(section => executiveAllowedSections.includes(section));
+                if (req.user.role === 'executive' && hasExecutiveAccess) {
+                    return next();
+                }
+
+                const hasEntityAccess = sections.some(section => entityAllowedSections.includes(section));
+                if (['distributor', 'dealer', 'sub_dealer'].includes(req.user.role) && hasEntityAccess) {
+                    return next();
+                }
+
+                return res.status(404).json({ message: 'User not found.' });
+            }
+
+            if (!user.isActive) {
+                return res.status(403).json({ message: 'User account is inactive.' });
+            }
+
+            // Check if user has any access to any of the sections
+            const hasAccess = sections.some(section => user.hasAccessToSection(section));
+
+            if (!hasAccess) {
+                const hasExecutiveAccess = sections.some(section => executiveAllowedSections.includes(section));
+                if (req.user.role === 'executive' && hasExecutiveAccess) {
+                    return next();
+                }
+
+                return res.status(403).json({ 
+                    message: `Access denied. You do not have permission to view this section.`
+                });
+            }
+
+            // Add user's permissions to the request for use in routes
+            req.userPermissions = user.accessControl;
+            next();
+        } catch (error) {
+            res.status(500).json({ message: 'Error checking permissions.' });
+        }
+    };
+};
+
+export { verifyToken, checkPermission, checkMultiplePermissions, checkSectionAccess, checkAnySectionAccess };

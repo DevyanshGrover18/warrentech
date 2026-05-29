@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Plus, X, FilePenLine, Trash2, Box } from 'lucide-react';
 import ListComponent from '../../global/ListComponent';
 import ErrorBoundary from '../../global/ErrorBoundary';
@@ -14,6 +14,8 @@ import ExportToPdfButton from '../../global/ExportToPdfButton';
 import { confirmDelete } from '../../global/deleteConfirm';
 import WalletDetailsModal from '../Wallets/components/WalletDetailsModal';
 import WalletIconButton from '../Wallets/components/WalletIconButton';
+import { dealerService } from './services/dealerService';
+import PaginationBar from '../../global/PaginationBar';
 
 function Dealers() {
     const {
@@ -21,7 +23,20 @@ function Dealers() {
         setSearchTerm,
         dealers,
         loading,
+        isRefreshing,
         distributors,
+        page,
+        limit,
+        totalItems,
+        totalPages,
+        stateFilter,
+        distributorFilter,
+        setPage,
+        setLimit,
+        setStateFilter,
+        setDistributorFilter,
+        resetFilters,
+        refresh,
         addDealer,
         updateDealer,
         deleteDealer,
@@ -33,37 +48,9 @@ function Dealers() {
     const [showProductsModal, setShowProductsModal] = useState(false);
     const [dealerProducts, setDealerProducts] = useState([]);
     const [states, setStates] = useState([]);
-    const [currentPage, setCurrentPage] = useState(1);
-    const [itemsPerPage, setItemsPerPage] = useState(10);
     const [selectedDealers, setSelectedDealers] = useState([]);
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [stateFilter, setStateFilter] = useState('all');
-    const [distributorFilter, setDistributorFilter] = useState('all');
     const [selectedWalletDealer, setSelectedWalletDealer] = useState(null);
-
-    const filteredDealers = useMemo(() => {
-        return dealers.filter(dealer => {
-            const searchLower = searchTerm.toLowerCase();
-            const matchSearch = (
-                dealer.name?.toLowerCase().includes(searchLower) ||
-                dealer.dealerId?.toLowerCase().includes(searchLower) ||
-                dealer.city?.toLowerCase().includes(searchLower) ||
-                dealer.distributor?.name?.toLowerCase().includes(searchLower)
-            );
-
-            const matchState = stateFilter === 'all' || dealer.state === stateFilter;
-            const matchDistributor = distributorFilter === 'all' || dealer.distributor?._id === distributorFilter;
-
-            return matchSearch && matchState && matchDistributor;
-        });
-    }, [dealers, searchTerm, stateFilter, distributorFilter]);
-
-    const totalPages = useMemo(() => Math.ceil(filteredDealers.length / itemsPerPage), [filteredDealers, itemsPerPage]);
-    const currentItems = useMemo(() => {
-        const indexOfLastItem = currentPage * itemsPerPage;
-        const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-        return filteredDealers.slice(indexOfFirstItem, indexOfLastItem);
-    }, [filteredDealers, currentPage, itemsPerPage]);
     
     const [newDealer, setNewDealer] = useState({
         name: '',
@@ -90,7 +77,7 @@ function Dealers() {
     ];
 
     const getExportData = () => {
-        return filteredDealers.map(dealer => ({
+        return dealers.map(dealer => ({
             'ID': dealer.dealerId,
             'Name': dealer.name,
             'City': dealer.city,
@@ -126,6 +113,10 @@ function Dealers() {
             fetchCities(newDealer.state);
         }
     }, [newDealer.state]);
+
+    useEffect(() => {
+        setSelectedDealers([]);
+    }, [page, limit, searchTerm, stateFilter, distributorFilter]);
 
     const handleAddEditDealer = async (e) => {
         e.preventDefault();
@@ -214,8 +205,9 @@ function Dealers() {
         if (!confirmed) return;
 
         try {
-            await axios.delete(`${import.meta.env.VITE_API_URL}/api/dealers`, { data: { dealerIds: selectedDealers } });
-            window.location.reload();
+            await dealerService.deleteManyDealers(selectedDealers);
+            setSelectedDealers([]);
+            await refresh();
             toast.success('Selected dealers deleted successfully');
         } catch (error) {
             toast.error(error.response?.data?.message || 'Error deleting dealers');
@@ -239,7 +231,7 @@ function Dealers() {
                             <div>
                                 <h2 className="text-lg font-semibold text-gray-900">Dealer List</h2>
                                 <p className="text-sm text-gray-600">
-                                    Total {filteredDealers.length}
+                                    Total {totalItems}
                                 </p>
                             </div>
                             <div className="flex flex-col sm:flex-row items-stretch sm:items-center space-y-3 sm:space-y-0 sm:space-x-4">
@@ -278,11 +270,7 @@ function Dealers() {
                             onDistributorFilterChange={setDistributorFilter}
                             states={states}
                             distributors={distributors}
-                            onClearFilters={() => {
-                                setSearchTerm('');
-                                setStateFilter('all');
-                                setDistributorFilter('all');
-                            }}
+                            onClearFilters={resetFilters}
                         />
                     </div>
 
@@ -318,7 +306,7 @@ function Dealers() {
                                             </tr>
                                         </thead>
                                         <ListComponent
-                                            items={currentItems}
+                                            items={dealers}
                                             renderItem={(dealer) => (
                                                 <>
                                                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
@@ -365,7 +353,7 @@ function Dealers() {
                                                                 <FilePenLine size={20} className="text-gray-500" />
                                                             </button>
                                                             <button 
-                                                                onClick={() => deleteDealer(dealer._id)}
+                                                                onClick={() => deleteDealer(dealer._id, dealer.name)}
                                                                 className="p-2 rounded-full hover:bg-gray-100 transition-colors"
                                                             >
                                                                 <Trash2 size={20} className="text-red-500" />
@@ -401,7 +389,7 @@ function Dealers() {
                                                                 <FilePenLine size={20} className="text-gray-500" />
                                                             </button>
                                                             <button 
-                                                                onClick={() => deleteDealer(dealer._id)}
+                                                                onClick={() => deleteDealer(dealer._id, dealer.name)}
                                                                 className="p-2 rounded-full hover:bg-gray-100 transition-colors"
                                                             >
                                                                 <Trash2 size={20} className="text-red-500" />
@@ -438,57 +426,22 @@ function Dealers() {
                             </>
                         )}
                     </div>
-                    {dealers.length > 0 && (
-                        <div className="px-6 py-3 border-t border-gray-200 flex flex-col md:flex-row items-center md:justify-between gap-3 md:gap-0">
-                            <div className="w-full md:w-auto flex items-center justify-between md:justify-start text-sm text-gray-700 space-x-2">
-                                <div className="flex items-center space-x-2">
-                                    <span className="whitespace-nowrap">Rows per page:</span>
-                                    <select
-                                        className="ml-2 border border-gray-300 rounded px-2 py-1"
-                                        value={itemsPerPage}
-                                        onChange={(e) => {
-                                            setItemsPerPage(Number(e.target.value));
-                                            setCurrentPage(1);
-                                        }}
-                                    >
-                                        <option value="10">10</option>
-                                        <option value="25">25</option>
-                                        <option value="50">50</option>
-                                        <option value="75">75</option>
-                                        <option value="100">100</option>
-                                    </select>
-                                </div>
-
-                                {/* Hide verbose range on small screens */}
-                                <div className="hidden md:block text-sm text-gray-700">
-                                    Showing {currentItems.length > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0} to {Math.min(currentPage * itemsPerPage, dealers.length)} of {dealers.length} dealers
-                                </div>
-                            </div>
-
-                            <div className="w-full md:w-auto flex items-center justify-between md:justify-end space-x-2">
-                                <div className="text-sm text-gray-700 md:hidden">Page {currentPage} of {totalPages}</div>
-
-                                <div className="flex items-center space-x-2">
-                                    <button
-                                        onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                                        disabled={currentPage === 1}
-                                        className="px-3 py-1 text-sm border border-gray-300 rounded disabled:opacity-50"
-                                    >
-                                        Previous
-                                    </button>
-
-                                    <span className="text-sm text-gray-700 hidden md:inline">Page {currentPage} of {totalPages}</span>
-
-                                    <button
-                                        onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                                        disabled={currentPage === totalPages}
-                                        className="px-3 py-1 text-sm border border-gray-300 rounded disabled:opacity-50"
-                                    >
-                                        Next
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
+                    {totalItems > 0 && (
+                        <PaginationBar
+                            page={page}
+                            totalPages={totalPages}
+                            totalItems={totalItems}
+                            limit={limit}
+                            itemLabel="dealers"
+                            onPageChange={(nextPage) => {
+                                setSelectedDealers([]);
+                                setPage(nextPage);
+                            }}
+                            onLimitChange={(nextLimit) => {
+                                setSelectedDealers([]);
+                                setLimit(nextLimit);
+                            }}
+                        />
                     )}
                 </div>
             </div>

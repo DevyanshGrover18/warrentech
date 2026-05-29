@@ -2,16 +2,28 @@ import Distributor from "../models/Distributor.js";
 import Product from "../models/Product.js";
 import User from "../models/User.js"; // Import User model
 import Dealer from "../models/Dealer.js"; // Import Dealer model
+import SubDealer from "../models/SubDealer.js";
 import Executive from "../models/Executive.js";
 import bcrypt from "bcryptjs"; // Import bcrypt for password hashing
 import { ensureDistributorInScope, getExecutiveScope } from "../utils/executiveScope.js";
+import { buildPaginatedAggregationResponse, parsePaginatedListQuery } from "../utils/paginatedList.js";
 
 const sanitizeDealerIds = (dealerIds = []) => [...new Set(dealerIds.filter(Boolean))];
+const sanitizeSubDealerIds = (subDealerIds = []) => [...new Set(subDealerIds.filter(Boolean))];
 
 export const getDistributors = async (req, res) => {
   try {
-    const { search } = req.query;
+    const { search, state } = req.query;
     const scope = await getExecutiveScope(req.user);
+    const listQuery = parsePaginatedListQuery(req.query, {
+      defaultLimit: 25,
+      maxLimit: 100,
+      defaultSortBy: "createdAt",
+      defaultSortOrder: "desc",
+    });
+    const sortableFields = new Set(["createdAt", "name", "distributorId", "city", "state", "productCount"]);
+    const sortField = sortableFields.has(listQuery.sortBy) ? listQuery.sortBy : "createdAt";
+    const sortStage = { $sort: { [sortField]: listQuery.sortOrder === "asc" ? 1 : -1 } };
     let matchQuery = {};
 
     if (search) {
@@ -21,8 +33,13 @@ export const getDistributors = async (req, res) => {
           { state: { $regex: search, $options: "i" } },
           { city: { $regex: search, $options: "i" } },
           { address: { $regex: search, $options: "i" } },
+          { distributorId: { $regex: search, $options: "i" } },
         ],
       };
+    }
+
+    if (state && state !== "all") {
+      matchQuery.state = state;
     }
 
     if (scope.isExecutive) {
@@ -32,7 +49,7 @@ export const getDistributors = async (req, res) => {
       };
     }
 
-    const distributors = await Distributor.aggregate([
+    const basePipeline = [
       { $match: matchQuery },
       {
         $lookup: {
@@ -53,6 +70,7 @@ export const getDistributors = async (req, res) => {
                 executiveId: 1,
                 name: 1,
                 assignmentDealerIds: "$assignedDistributors.dealers",
+                assignmentSubDealerIds: "$assignedDistributors.subDealers",
               },
             },
           ],
@@ -107,6 +125,9 @@ export const getDistributors = async (req, res) => {
           assignmentDealerIds: {
             $ifNull: ["$executiveAssignment.assignmentDealerIds", []],
           },
+          assignmentSubDealerIds: {
+            $ifNull: ["$executiveAssignment.assignmentSubDealerIds", []],
+          },
         },
       },
       {
@@ -115,8 +136,38 @@ export const getDistributors = async (req, res) => {
           executiveAssignment: 0,
         },
       },
-      { $sort: { createdAt: -1 } },
-    ]);
+      sortStage,
+    ];
+
+    if (listQuery.paginate) {
+      const paginatedResult = await Distributor.aggregate([
+        ...basePipeline,
+        {
+          $facet: {
+            items: [
+              { $skip: listQuery.skip },
+              { $limit: listQuery.limit },
+            ],
+            totalCount: [
+              { $count: "count" },
+            ],
+          },
+        },
+      ]);
+
+      return res.json(buildPaginatedAggregationResponse(paginatedResult, {
+        page: listQuery.page,
+        limit: listQuery.limit,
+        appliedFilters: {
+          search: search || "",
+          state: state || "all",
+          sortBy: sortField,
+          sortOrder: listQuery.sortOrder,
+        },
+      }));
+    }
+
+    const distributors = await Distributor.aggregate(basePipeline);
 
     res.json(distributors);
   } catch (error) {
@@ -423,7 +474,7 @@ export const getDistributorDealers = async (req, res) => {
 export const reassignDistributorExecutive = async (req, res) => {
   try {
     const { id } = req.params;
-    const { executiveId, dealerIds = [] } = req.body;
+    const { executiveId, dealerIds = [], subDealerIds = [] } = req.body;
 
     if (!executiveId) {
       return res.status(400).json({ message: "Executive is required" });
@@ -440,6 +491,7 @@ export const reassignDistributorExecutive = async (req, res) => {
     }
 
     const cleanedDealerIds = sanitizeDealerIds(dealerIds);
+    const cleanedSubDealerIds = sanitizeSubDealerIds(subDealerIds);
 
     if (cleanedDealerIds.length > 0) {
       const dealerCount = await Dealer.countDocuments({
@@ -454,6 +506,25 @@ export const reassignDistributorExecutive = async (req, res) => {
       }
     }
 
+    if (cleanedSubDealerIds.length > 0) {
+      if (cleanedDealerIds.length === 0) {
+        return res.status(400).json({
+          message: "Select dealers before assigning sub dealers",
+        });
+      }
+
+      const subDealerCount = await SubDealer.countDocuments({
+        _id: { $in: cleanedSubDealerIds },
+        dealer: { $in: cleanedDealerIds },
+      });
+
+      if (subDealerCount !== cleanedSubDealerIds.length) {
+        return res.status(400).json({
+          message: "One or more selected sub dealers do not belong to the selected dealers",
+        });
+      }
+    }
+
     await Executive.updateMany(
       { "assignedDistributors.distributorId": distributor._id },
       { $pull: { assignedDistributors: { distributorId: distributor._id } } },
@@ -464,6 +535,7 @@ export const reassignDistributorExecutive = async (req, res) => {
         assignedDistributors: {
           distributorId: distributor._id,
           dealers: cleanedDealerIds,
+          subDealers: cleanedSubDealerIds,
         },
       },
     });
@@ -492,6 +564,7 @@ export const reassignDistributorExecutive = async (req, res) => {
                 executiveId: 1,
                 name: 1,
                 assignmentDealerIds: "$assignedDistributors.dealers",
+                assignmentSubDealerIds: "$assignedDistributors.subDealers",
               },
             },
           ],
@@ -505,6 +578,9 @@ export const reassignDistributorExecutive = async (req, res) => {
           executiveCode: "$executiveAssignment.executiveId",
           assignmentDealerIds: {
             $ifNull: ["$executiveAssignment.assignmentDealerIds", []],
+          },
+          assignmentSubDealerIds: {
+            $ifNull: ["$executiveAssignment.assignmentSubDealerIds", []],
           },
         },
       },

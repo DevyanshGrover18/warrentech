@@ -12,7 +12,7 @@ const userSchema = new mongoose.Schema({
     },
     role: {
         type: String,
-        enum: ['admin', 'factory', 'distributor', 'dealer', 'technician', 'executive'],
+        enum: ['admin', 'factory', 'distributor', 'dealer', 'sub_dealer', 'technician', 'executive'],
         required: true
     },
     factory: {
@@ -34,6 +34,13 @@ const userSchema = new mongoose.Schema({
         ref: 'Dealer',
         required: function() {
             return this.role === 'dealer';
+        }
+    },
+    subDealer: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'SubDealer',
+        required: function() {
+            return this.role === 'sub_dealer';
         }
     },
     executive: {

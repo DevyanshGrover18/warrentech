@@ -10,6 +10,7 @@ const EditSaleModal = ({
   sale,
   onSave,
   initialMode = 'edit',
+  canEdit = true,
   backdropClassName = 'bg-black/60',
 }) => {
   const [mode, setMode] = useState(initialMode);
@@ -22,6 +23,7 @@ const EditSaleModal = ({
     customerCity: '',
     plumberName: '',
     plumberPhone: '',
+    soldBy: '',
   });
   const [states, setStates] = useState([]);
   const [cities, setCities] = useState([]);
@@ -55,6 +57,7 @@ const EditSaleModal = ({
         customerCity: sale.customerCity || sale.customer?.city || '',
         plumberName: sale.plumberName || sale.customer?.plumberName || '',
         plumberPhone: sale.plumberPhone || sale.customer?.plumberPhone || '',
+        soldBy: sale.soldBy || '',
       });
     }
   }, [sale]);
@@ -111,7 +114,7 @@ const EditSaleModal = ({
                 )}
               </div>
               <div className="flex items-center gap-2">
-                {mode === 'view' && (
+                {mode === 'view' && canEdit && (
                   <button
                     onClick={() => setMode('edit')}
                     className="p-2 hover:bg-blue-50 rounded-full transition-colors text-blue-600"
@@ -224,6 +227,15 @@ const EditSaleModal = ({
                       className="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 border p-2.5"
                     />
                   </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1">Sold By</label>
+                    <input
+                      type="text"
+                      value={formData.soldBy}
+                      onChange={(e) => handleChange('soldBy', e.target.value)}
+                      className="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 border p-2.5"
+                    />
+                  </div>
                 </div>
 
                 <div className="mt-8 flex flex-row-reverse gap-3">
@@ -281,6 +293,10 @@ const EditSaleModal = ({
                 <div className="bg-gray-50 p-4 rounded-lg">
                   <p className="text-gray-500 font-medium mb-1">Plumber Phone</p>
                   <p className="font-bold text-gray-900 text-base">{formData.plumberPhone || '-'}</p>
+                </div>
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <p className="text-gray-500 font-medium mb-1">Sold By</p>
+                  <p className="font-bold text-gray-900 text-base">{formData.soldBy || '-'}</p>
                 </div>
               </div>
             )}

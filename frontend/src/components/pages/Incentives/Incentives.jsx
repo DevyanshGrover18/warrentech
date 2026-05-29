@@ -2,6 +2,7 @@ import { useContext, useEffect, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { incentiveService } from '../../../services/incentiveService';
 import { AuthContext } from '../../../context/AuthContext';
+import { Link } from 'react-router-dom';
 
 const statusOptions = ['all', 'incomplete', 'pending_approval', 'approved', 'rejected'];
 const actionableStatuses = ['incomplete', 'pending_approval'];
@@ -13,6 +14,7 @@ export default function Incentives() {
   const [settings, setSettings] = useState({
     distributorPerSaleIncentive: 0,
     dealerPerSaleIncentive: 0,
+    subDealerPerSaleIncentive: 0,
   });
   const [loading, setLoading] = useState(true);
   const [savingSettings, setSavingSettings] = useState(false);
@@ -23,13 +25,17 @@ export default function Incentives() {
     try {
       setLoading(true);
       const [incentiveData, settingsData] = await Promise.all([
-        incentiveService.getIncentives(status),
+        isAdmin ? incentiveService.getIncentives(status, 10, 1) : incentiveService.getIncentives(status),
         incentiveService.getSettings(),
       ]);
-      setIncentives(incentiveData || []);
+      
+      // If isAdmin, incentiveData is { data, total, page, totalPages }
+      setIncentives(isAdmin ? (incentiveData.data || []) : (incentiveData || []));
+      
       setSettings({
         distributorPerSaleIncentive: settingsData?.distributorPerSaleIncentive || 0,
         dealerPerSaleIncentive: settingsData?.dealerPerSaleIncentive || 0,
+        subDealerPerSaleIncentive: settingsData?.subDealerPerSaleIncentive || 0,
       });
     } catch (error) {
       toast.error(error.response?.data?.message || 'Failed to load incentives');
@@ -40,7 +46,7 @@ export default function Incentives() {
 
   useEffect(() => {
     fetchData();
-  }, [status]);
+  }, [status, isAdmin]);
 
   const handleApprove = async (saleId) => {
     try {
@@ -86,6 +92,7 @@ export default function Incentives() {
       await incentiveService.updateSettings({
         distributorPerSaleIncentive: Number(settings.distributorPerSaleIncentive) || 0,
         dealerPerSaleIncentive: Number(settings.dealerPerSaleIncentive) || 0,
+        subDealerPerSaleIncentive: Number(settings.subDealerPerSaleIncentive) || 0,
       });
       toast.success('Incentive settings updated');
       fetchData();
@@ -124,7 +131,7 @@ export default function Incentives() {
       {isAdmin && (
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Per-Sale Incentive Settings</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Distributor incentive</label>
               <input
@@ -145,6 +152,16 @@ export default function Incentives() {
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
               />
             </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Sub Dealer incentive</label>
+              <input
+                type="number"
+                min="0"
+                value={settings.subDealerPerSaleIncentive}
+                onChange={(e) => handleSettingChange('subDealerPerSaleIncentive', e.target.value)}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+              />
+            </div>
           </div>
           <button
             onClick={handleSaveSettings}
@@ -162,84 +179,106 @@ export default function Incentives() {
         ) : incentives.length === 0 ? (
           <div className="text-center py-10 text-gray-500">No incentives found for this filter.</div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Seller</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Type</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Product</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Customer</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Amount</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Status</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200 bg-white">
-                {incentives.map((sale) => {
-                  const seller = sale.incentiveType === 'dealer' ? sale.dealer : sale.distributor;
-                  const isActionable = actionableStatuses.includes(sale.incentiveStatus);
+          <>
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Seller</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Type</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Product</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Customer</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Amount</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Status</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200 bg-white">
+                  {incentives.map((sale) => {
+                    const seller = sale.incentiveType === 'dealer' ? sale.dealer : sale.distributor;
+                    const isActionable = actionableStatuses.includes(sale.incentiveStatus);
 
-                  return (
-                    <tr key={sale._id}>
-                      <td className="px-4 py-4 text-sm text-gray-900">{seller?.name || '-'}</td>
-                      <td className="px-4 py-4 text-sm capitalize text-gray-700">{sale.incentiveType || '-'}</td>
-                      <td className="px-4 py-4 text-sm text-gray-700">
-                        <div>{sale.product?.productName || '-'}</div>
-                        <div className="text-xs text-gray-500">{sale.product?.serialNumber || '-'}</div>
-                      </td>
-                      <td className="px-4 py-4 text-sm text-gray-700">
-                        <div>{sale.customerName || '-'}</div>
-                        <div className="text-xs text-gray-500">{sale.customerPhone || '-'}</div>
-                      </td>
-                      <td className="px-4 py-4 text-sm text-gray-900">₹{sale.incentiveAmount || 0}</td>
-                      <td className="px-4 py-4 text-sm capitalize text-gray-700">{sale.incentiveStatus?.replaceAll('_', ' ')}</td>
-                      <td className="px-4 py-4 text-sm text-gray-700">
-                        {isActionable ? (
-                          <div className="flex min-w-[280px] flex-col gap-2">
-                            <textarea
-                              value={rejectionNotes[sale._id] || ''}
-                              onChange={(e) =>
-                                setRejectionNotes((prev) => ({
-                                  ...prev,
-                                  [sale._id]: e.target.value,
-                                }))
-                              }
-                              rows={2}
-                              placeholder="Rejection reason (required to reject)"
-                              className="w-full rounded-md border border-gray-300 px-3 py-2 text-xs text-gray-700"
-                            />
-                            <div className="flex items-center gap-2">
-                            <button
-                              onClick={() => handleApprove(sale._id)}
-                              disabled={actingSaleId === sale._id}
-                              className="rounded-md bg-green-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-700 disabled:opacity-50"
-                            >
-                              Approve
-                            </button>
-                            <button
-                              onClick={() => handleReject(sale._id)}
-                              disabled={actingSaleId === sale._id}
-                              className="rounded-md bg-red-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-700 disabled:opacity-50"
-                            >
-                              Reject
-                            </button>
-                            </div>
-                          </div>
-                        ) : (
-                          <span className="text-xs text-gray-500">
-                            {sale.incentiveRejectionNote || (sale.adminTouchedForm ? 'Admin touched form' : 'No actions')}
+                    return (
+                      <tr key={sale._id} className="hover:bg-gray-50">
+                        <td className="px-4 py-4 text-sm text-gray-900">{seller?.name || '-'}</td>
+                        <td className="px-4 py-4 text-sm capitalize text-gray-700">{sale.incentiveType || '-'}</td>
+                        <td className="px-4 py-4 text-sm text-gray-700">
+                          <div>{sale.product?.productName || '-'}</div>
+                          <div className="text-xs text-gray-500">{sale.product?.serialNumber || '-'}</div>
+                        </td>
+                        <td className="px-4 py-4 text-sm text-gray-700">
+                          <div>{sale.customerName || '-'}</div>
+                          <div className="text-xs text-gray-500">{sale.customerPhone || '-'}</div>
+                        </td>
+                        <td className="px-4 py-4 text-sm text-gray-900 font-medium">₹{sale.incentiveAmount || 0}</td>
+                        <td className="px-4 py-4 text-sm">
+                          <span className={`px-2 py-1 rounded-full text-xs font-semibold capitalize
+                            ${sale.incentiveStatus === 'approved' ? 'bg-green-100 text-green-800' :
+                              sale.incentiveStatus === 'rejected' ? 'bg-red-100 text-red-800' :
+                              sale.incentiveStatus === 'pending_approval' ? 'bg-yellow-100 text-yellow-800' :
+                              sale.incentiveStatus === 'incomplete' ? 'bg-orange-100 text-orange-800' :
+                              'bg-gray-100 text-gray-800'}`}>
+                            {sale.incentiveStatus?.replaceAll('_', ' ')}
                           </span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                        </td>
+                        <td className="px-4 py-4 text-sm text-gray-700">
+                          {isActionable ? (
+                            <div className="flex min-w-[280px] flex-col gap-2">
+                              <textarea
+                                value={rejectionNotes[sale._id] || ''}
+                                onChange={(e) =>
+                                  setRejectionNotes((prev) => ({
+                                    ...prev,
+                                    [sale._id]: e.target.value,
+                                  }))
+                                }
+                                rows={2}
+                                placeholder="Rejection reason (required to reject)"
+                                className="w-full rounded-md border border-gray-300 px-3 py-2 text-xs text-gray-700"
+                              />
+                              <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => handleApprove(sale._id)}
+                                disabled={actingSaleId === sale._id}
+                                className="rounded-md bg-green-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-700 disabled:opacity-50"
+                              >
+                                Approve
+                              </button>
+                              <button
+                                onClick={() => handleReject(sale._id)}
+                                disabled={actingSaleId === sale._id}
+                                className="rounded-md bg-red-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-700 disabled:opacity-50"
+                              >
+                                Reject
+                              </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <span className="text-xs text-gray-500">
+                              {sale.incentiveRejectionNote || (sale.adminTouchedForm ? 'Admin touched form' : 'No actions')}
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            {isAdmin && (
+              <div className="mt-4 flex justify-start">
+                <Link
+                  to="/incentives/all"
+                  className="rounded-lg border border-blue-600 px-4 py-2 text-sm font-medium text-blue-600 hover:bg-blue-50 transition-colors"
+                >
+                  View All Incentives
+                </Link>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>
   );
 }
+

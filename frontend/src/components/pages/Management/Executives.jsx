@@ -39,6 +39,7 @@ const executiveColumns = [
   { header: "Contact Phone", accessor: "Contact Phone" },
   { header: "Distributors Count", accessor: "Distributors Count" },
   { header: "Dealers Count", accessor: "Dealers Count" },
+  { header: "Sub Dealers Count", accessor: "Sub Dealers Count" },
 ];
 
 // ─── Multi-select Dealers Dropdown (portal so it escapes modal overflow) ────
@@ -198,6 +199,163 @@ function DealerMultiSelect({
   );
 }
 
+function SubDealerMultiSelect({
+  subDealers,
+  selectedIds,
+  onChange,
+  disabled,
+  loading,
+}) {
+  const [open, setOpen] = useState(false);
+  const [dropdownStyle, setDropdownStyle] = useState({});
+  const triggerRef = useRef(null);
+  const dropdownRef = useRef(null);
+
+  const openDropdown = () => {
+    if (!triggerRef.current) return;
+    const rect = triggerRef.current.getBoundingClientRect();
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const estimatedHeight = Math.min(subDealers.length * 40 + 8, 200);
+    const openUpward =
+      spaceBelow < estimatedHeight + 8 && rect.top > estimatedHeight + 8;
+    setDropdownStyle({
+      position: "fixed",
+      left: rect.left,
+      width: rect.width,
+      zIndex: 9999,
+      ...(openUpward
+        ? { bottom: window.innerHeight - rect.top + 4 }
+        : { top: rect.bottom + 4 }),
+    });
+    setOpen(true);
+  };
+
+  useEffect(() => {
+    if (!open) return;
+    const handleOutside = (e) => {
+      if (
+        triggerRef.current &&
+        !triggerRef.current.contains(e.target) &&
+        dropdownRef.current &&
+        !dropdownRef.current.contains(e.target)
+      )
+        setOpen(false);
+    };
+    const handleScroll = () => setOpen(false);
+    document.addEventListener("mousedown", handleOutside);
+    document.addEventListener("scroll", handleScroll, true);
+    return () => {
+      document.removeEventListener("mousedown", handleOutside);
+      document.removeEventListener("scroll", handleScroll, true);
+    };
+  }, [open]);
+
+  const selectedNames = subDealers
+    .filter((d) => selectedIds.includes(d._id))
+    .map((d) => d.name);
+
+  const toggle = (id) => {
+    onChange(
+      selectedIds.includes(id)
+        ? selectedIds.filter((x) => x !== id)
+        : [...selectedIds, id],
+    );
+  };
+
+  return (
+    <>
+      <div ref={triggerRef} className="w-full">
+        <button
+          type="button"
+          disabled={disabled || loading}
+          onClick={() => {
+            if (!disabled && !loading) {
+              open ? setOpen(false) : openDropdown();
+            }
+          }}
+          className={`w-full flex items-center justify-between px-3 py-2.5 border rounded-xl text-sm text-left transition-colors ${
+            disabled
+              ? "bg-gray-50 border-gray-200 text-gray-400 cursor-not-allowed"
+              : loading
+                ? "bg-gray-50 border-gray-200 text-gray-400 cursor-wait"
+                : open
+                  ? "bg-white border-[#4d55f5] text-gray-700 ring-2 ring-[#4d55f5] ring-opacity-20"
+                  : "bg-white border-gray-300 text-gray-700 hover:border-[#4d55f5] cursor-pointer"
+          }`}
+        >
+          <span className="truncate">
+            {disabled
+              ? "Select a distributor first"
+              : loading
+                ? "Loading subDealers..."
+                : selectedNames.length > 0
+                  ? `Sub Dealers (${selectedNames.length})`
+                  : subDealers.length === 0
+                    ? "No subDealers available"
+                    : "Select subDealers"}
+          </span>
+          {loading ? (
+            <div className="h-4 w-4 flex-shrink-0 ml-2 animate-spin rounded-full border-2 border-gray-300 border-t-[#4d55f5]" />
+          ) : (
+            <ChevronDown
+              className={`h-4 w-4 flex-shrink-0 ml-2 transition-transform duration-150 ${open ? "rotate-180" : ""}`}
+            />
+          )}
+        </button>
+      </div>
+
+      {open &&
+        ReactDOM.createPortal(
+          <div
+            ref={dropdownRef}
+            style={dropdownStyle}
+            className="bg-white border border-gray-200 rounded-xl shadow-2xl max-h-48 overflow-y-auto"
+          >
+            {subDealers.length > 0 ? (
+              subDealers.map((subDealer) => (
+                <div
+                  key={subDealer._id}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    toggle(subDealer._id);
+                  }}
+                  className="flex items-center gap-2 px-3 py-2.5 hover:bg-gray-50 cursor-pointer text-sm text-gray-700 select-none"
+                >
+                  <div
+                    className={`h-4 w-4 flex-shrink-0 rounded border flex items-center justify-center transition-colors ${
+                      selectedIds.includes(subDealer._id)
+                        ? "bg-[#4d55f5] border-[#4d55f5]"
+                        : "border-gray-300"
+                    }`}
+                  >
+                    {selectedIds.includes(subDealer._id) && (
+                      <Check
+                        className="h-2.5 w-2.5 text-white"
+                        strokeWidth={3}
+                      />
+                    )}
+                  </div>
+                  <span>{subDealer.name}</span>
+                  {subDealer.subDealerId && (
+                    <span className="ml-auto text-xs text-gray-400">
+                      {subDealer.subDealerId}
+                    </span>
+                  )}
+                </div>
+              ))
+            ) : (
+              <p className="px-3 py-2.5 text-sm text-gray-400">
+                No sub dealers available
+              </p>
+            )}
+          </div>,
+          document.body,
+        )}
+    </>
+  );
+}
+
+
 // ─── Distributor Row ──────────────────────────────────────────────────────────
 function DistributorRow({
   row,
@@ -205,10 +363,36 @@ function DistributorRow({
   availableDistributors,
   onDistributorChange,
   onDealersChange,
+  onSubDealersChange,
   onRemove,
 }) {
   const [dealers, setDealers] = useState([]);
   const [loadingDealers, setLoadingDealers] = useState(false);
+
+  const [subDealers, setSubDealers] = useState([]);
+  const [loadingSubDealers, setLoadingSubDealers] = useState(false);
+
+  useEffect(() => {
+    if (!row.dealerIds || row.dealerIds.length === 0) {
+      setSubDealers([]);
+      return;
+    }
+    const fetchSubDealers = async () => {
+      setLoadingSubDealers(true);
+      try {
+        const { data } = await axios.get(
+          `${import.meta.env.VITE_API_URL}/api/sub-dealers?dealerIds=${row.dealerIds.join(',')}`
+        );
+        setSubDealers(data || []);
+      } catch {
+        setSubDealers([]);
+      } finally {
+        setLoadingSubDealers(false);
+      }
+    };
+    fetchSubDealers();
+  }, [row.dealerIds]);
+
 
   useEffect(() => {
     if (!row.distributorId) {
@@ -232,7 +416,7 @@ function DistributorRow({
   }, [row.distributorId]);
 
   return (
-    <div className="grid grid-cols-[1fr_1fr_auto] gap-2 items-center">
+    <div className="grid grid-cols-[1fr_1fr_1fr_auto] gap-2 items-center">
       <select
         value={row.distributorId}
         onChange={(e) => onDistributorChange(index, e.target.value)}
@@ -252,6 +436,14 @@ function DistributorRow({
         onChange={(ids) => onDealersChange(index, ids)}
         disabled={!row.distributorId}
         loading={loadingDealers}
+      />
+
+      <SubDealerMultiSelect
+        subDealers={subDealers}
+        selectedIds={row.subDealerIds || []}
+        onChange={(ids) => onSubDealersChange(index, ids)}
+        disabled={!row.dealerIds?.length}
+        loading={loadingSubDealers}
       />
 
       <button
@@ -287,7 +479,7 @@ export default function Executives() {
 
   // Each row: { distributorId: string, dealerIds: string[] }
   const [distributorRows, setDistributorRows] = useState([
-    { distributorId: "", dealerIds: [] },
+    { distributorId: "", dealerIds: [], subDealerIds: [] },
   ]);
 
   const fetchExecutives = async () => {
@@ -377,20 +569,27 @@ export default function Executives() {
 
   const handleDistributorChange = (index, distributorId) => {
     setDistributorRows((rows) =>
-      rows.map((r, i) => (i === index ? { distributorId, dealerIds: [] } : r)),
+      rows.map((r, i) => (i === index ? { distributorId, dealerIds: [], subDealerIds: [] } : r)),
     );
   };
 
   const handleDealersChange = (index, dealerIds) => {
     setDistributorRows((rows) =>
-      rows.map((r, i) => (i === index ? { ...r, dealerIds } : r)),
+      rows.map((r, i) => (i === index ? { ...r, dealerIds, subDealerIds: [] } : r)),
+    );
+  };
+
+  
+  const handleSubDealersChange = (index, subDealerIds) => {
+    setDistributorRows((rows) =>
+      rows.map((r, i) => (i === index ? { ...r, subDealerIds } : r))
     );
   };
 
   const addRow = () => {
     setDistributorRows((rows) => [
       ...rows,
-      { distributorId: "", dealerIds: [] },
+      { distributorId: "", dealerIds: [], subDealerIds: [] },
     ]);
   };
 
@@ -407,6 +606,7 @@ export default function Executives() {
       "Contact Phone": executive.contactPhone || "-",
       "Distributors Count": executive.distributorCount || 0,
       "Dealers Count": executive.dealerCount || 0,
+      "Sub Dealers Count": executive.subDealerCount || 0,
     }));
   };
 
@@ -436,7 +636,7 @@ export default function Executives() {
     setCities([]);
     setIsEditing(false);
     setSelectedExecutive(null);
-    setDistributorRows([{ distributorId: "", dealerIds: [] }]);
+    setDistributorRows([{ distributorId: "", dealerIds: [], subDealerIds: [] }]);
   };
 
   const openEdit = (executive) => {
@@ -461,9 +661,10 @@ export default function Executives() {
     const rows = (executive.distributors || []).map((dist) => ({
       distributorId: dist._id,
       dealerIds: (dist.dealers || []).map((d) => d._id),
+      subDealerIds: (dist.subDealers || []).map((d) => d._id),
     }));
     setDistributorRows(
-      rows.length > 0 ? rows : [{ distributorId: "", dealerIds: [] }],
+      rows.length > 0 ? rows : [{ distributorId: "", dealerIds: [], subDealerIds: [] }],
     );
 
     fetchCities(executive.state || "");
@@ -476,7 +677,7 @@ export default function Executives() {
     // Build assignedDistributors payload from rows
     const assignedDistributors = distributorRows
       .filter((r) => r.distributorId)
-      .map((r) => ({ distributorId: r.distributorId, dealerIds: r.dealerIds }));
+      .map((r) => ({ distributorId: r.distributorId, dealerIds: r.dealerIds, subDealers: r.subDealerIds }));
 
     const payload = { ...form, assignedDistributors };
     if (!payload.password) delete payload.password;
@@ -1064,7 +1265,7 @@ export default function Executives() {
                 </div>
 
                 {/* Column headers */}
-                <div className="grid grid-cols-[1fr_1fr_auto] gap-2 mb-2 px-1">
+                <div className="grid grid-cols-[1fr_1fr_1fr_auto] gap-2 mb-2 px-1">
                   <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">
                     Distributor
                   </span>
@@ -1072,6 +1273,12 @@ export default function Executives() {
                     Dealers{" "}
                     {distributorRows.some((r) => r.dealerIds.length > 0)
                       ? `(${distributorRows.reduce((sum, r) => sum + r.dealerIds.length, 0)})`
+                      : ""}
+                  </span>
+                  <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+                    Sub Dealers{" "}
+                    {distributorRows.some((r) => r.subDealerIds && r.subDealerIds.length > 0)
+                      ? `(${distributorRows.reduce((sum, r) => sum + ((r.subDealerIds && r.subDealerIds.length) || 0), 0)})`
                       : ""}
                   </span>
                   <span className="w-8" />
@@ -1086,6 +1293,7 @@ export default function Executives() {
                       availableDistributors={getAvailableDistributors(index)}
                       onDistributorChange={handleDistributorChange}
                       onDealersChange={handleDealersChange}
+                      onSubDealersChange={handleSubDealersChange}
                       onRemove={removeRow}
                     />
                   ))}

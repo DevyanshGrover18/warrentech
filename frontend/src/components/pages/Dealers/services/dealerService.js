@@ -1,11 +1,13 @@
 import axios from 'axios';
+import { buildQueryString } from '../../../../services/buildQueryString';
 
 const API_URL = `${import.meta.env.VITE_API_URL}/api/dealers`;
 const DISTRIBUTOR_API_URL = `${import.meta.env.VITE_API_URL}/api/distributors`;
 
 export const dealerService = {
-    fetchDealers: async (searchTerm = '') => {
-        return await axios.get(searchTerm ? `${API_URL}?search=${searchTerm}` : API_URL);
+    fetchDealers: async (params = {}) => {
+        const response = await axios.get(`${API_URL}${buildQueryString(params)}`);
+        return response.data;
     },
 
     createDealer: async (dealerData) => {
@@ -20,7 +22,13 @@ export const dealerService = {
         return await axios.delete(`${API_URL}/${dealerId}`);
     },
 
-    fetchDistributors: async () => {
-        return await axios.get(DISTRIBUTOR_API_URL);
+    deleteManyDealers: async (dealerIds) => {
+        return await axios.delete(API_URL, {
+            data: { dealerIds },
+        });
+    },
+
+    fetchDistributors: async (params = {}) => {
+        return await axios.get(`${DISTRIBUTOR_API_URL}${buildQueryString(params)}`);
     }
 };

@@ -21,6 +21,7 @@ const SALE_EDITABLE_FIELDS = [
     'customerCity',
     'plumberName',
     'plumberPhone',
+    'soldBy',
 ];
 
 const applySalePayload = (sale, payload) => {
@@ -229,11 +230,11 @@ export const getDealerSales = async (req, res) => {
 };
 
 export const createSale = async (req, res) => {
-  const { productId, customerName, customerPhone, customerEmail, customerAddress, customerState, customerCity, plumberName, plumberPhone } = req.body;
+  const { productId, customerName, customerPhone, customerEmail, customerAddress, customerState, customerCity, plumberName, plumberPhone, soldBy } = req.body;
 
   try {
-    if (!req.user || !['dealer', 'distributor'].includes(req.user.role)) {
-      return res.status(403).json({ message: 'Only distributors and dealers can create sales.' });
+    if (!req.user || !['dealer', 'distributor', 'sub_dealer'].includes(req.user.role)) {
+      return res.status(403).json({ message: 'Only distributors, dealers and sub dealers can create sales.' });
     }
 
     const product = await Product.findById(productId);
@@ -266,7 +267,8 @@ export const createSale = async (req, res) => {
 
     const sale = new Sale({
       product: productId,
-      dealer: req.user.role === 'dealer' ? req.user.dealer : null,
+      dealer: req.user.role === 'dealer' ? req.user.dealer : (req.user.role === 'sub_dealer' ? req.user.subDealer?.dealer : null),
+      subDealer: req.user.role === 'sub_dealer' ? req.user.subDealer : null,
       distributor: req.user.role === 'distributor' ? req.user.distributor : null,
       customerName,
       customerPhone,
@@ -276,11 +278,12 @@ export const createSale = async (req, res) => {
       customerCity,
       plumberName,
       plumberPhone,
+      soldBy,
       customer: customer ? customer._id : null,
       createdByRole: req.user.role,
       createdByUserId: req.user.id,
       createdByEntityType: req.user.role,
-      createdByEntityId: req.user.role === 'dealer' ? req.user.dealer : req.user.distributor,
+      createdByEntityId: req.user.role === 'dealer' ? req.user.dealer : (req.user.role === 'sub_dealer' ? req.user.subDealer : req.user.distributor),
       incentiveStatus: isSaleFormComplete({
         customerName,
         customerPhone,
@@ -292,6 +295,15 @@ export const createSale = async (req, res) => {
         plumberPhone,
       }) ? 'pending_approval' : 'incomplete',
     });
+
+    // If sub_dealer is selling, we need to find the dealer they belong to if not already populated
+    if (req.user.role === 'sub_dealer' && !sale.dealer) {
+        const SubDealer = mongoose.model('SubDealer');
+        const sd = await SubDealer.findById(req.user.subDealer);
+        if (sd) {
+            sale.dealer = sd.dealer;
+        }
+    }
 
     await recomputeSaleIncentive(sale, {
       editedByRole: req.user.role,
@@ -396,6 +408,18 @@ export const getSalesByDealer = async (req, res) => {
   }
 };
 
+export const getSalesBySubDealer = async (req, res) => {
+    try {
+      const sales = await Sale.find({ subDealer: req.params.subDealerId })
+        .populate({ path: 'product', populate: { path: 'model' } })
+        .populate('subDealer')
+        .populate('dealer');
+      res.json(sales);
+    } catch (error) {
+      res.status(500).json({ message: error.message });
+    }
+};
+
 export const updateSale = async (req, res) => {
   try {
     const { saleId } = req.params;
@@ -422,20 +446,21 @@ export const updateSale = async (req, res) => {
       return res.status(403).json({ message: 'You do not have permission to edit this sale.' });
     }
 
-    // Check deadline for non-admin original sellers
+    // Check deadline for non-admin sellers
     if (!canAdminEdit && isOriginalSeller) {
         const config = await BillingConfig.findOne();
-        if (config) {
-            const saleDate = new Date(sale.soldAt || sale.createdAt);
-            const now = new Date();
-            let deadlineMs = config.saleEditDeadlineValue * 60 * 60 * 1000; // default to hrs
-            if (config.saleEditDeadlineUnit === 'days') {
-                deadlineMs = config.saleEditDeadlineValue * 24 * 60 * 60 * 1000;
-            }
-            
-            if (now - saleDate > deadlineMs) {
-                return res.status(403).json({ message: 'The time period for editing this sale has expired.' });
-            }
+        const deadlineValue = config?.saleEditDeadlineValue ?? 24;
+        const deadlineUnit = config?.saleEditDeadlineUnit ?? 'hrs';
+        
+        const saleDate = new Date(sale.soldAt || sale.createdAt);
+        const now = new Date();
+        let deadlineMs = deadlineValue * 60 * 60 * 1000;
+        if (deadlineUnit === 'days') {
+            deadlineMs = deadlineValue * 24 * 60 * 60 * 1000;
+        }
+        
+        if (now - saleDate > deadlineMs) {
+            return res.status(403).json({ message: 'The time period for editing this sale has expired.' });
         }
     }
 
@@ -506,11 +531,22 @@ export const getAssignedProducts = async (req, res) => {
       const productObj = product.toObject();
       productObj.dealer = dealerMap[product._id.toString()] || null;
       productObj.assignedToDistributorAt = product.updatedAt; // When distributor was assigned
-      
-      // For now, subDealer is null as it's not in the current schema
-      productObj.subDealer = null;
-      
       return productObj;
+    });
+
+    // Get sub-dealer assignments
+    const subDealerAssignments = await mongoose.model('DealerSubDealerProduct').find({
+        product: { $in: productIds }
+    }).populate('subDealer');
+
+    const subDealerMap = {};
+    subDealerAssignments.forEach(assignment => {
+        subDealerMap[assignment.product.toString()] = assignment.subDealer;
+    });
+
+    // Attach sub-dealer info
+    enrichedProducts.forEach(p => {
+        p.subDealer = subDealerMap[p._id.toString()] || null;
     });
 
     // Fetch any sales related to these products so we can include customer details

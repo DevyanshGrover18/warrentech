@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useContext } from "react";
 import {
   Building,
   ShoppingCart,
@@ -24,8 +24,11 @@ import DistributorSalesHistogram from "./DistributorSalesHistogram";
 import EditSaleModal from "../Dealers/components/EditSaleModal";
 import { updateSale } from "../Dealers/services/dealerSalesService";
 import { toast } from "react-hot-toast";
+import { AuthContext } from "../../../context/AuthContext";
+import DashboardSummaryLayout from "../../global/DashboardSummaryLayout";
 
 export default function Dashboard() {
+  const { user, isAdmin, hasAnyPrivilege } = useContext(AuthContext);
   const [activeTab, setActiveTab] = useState("overview");
   const [loading, setLoading] = useState(true);
   const [sales, setSales] = useState([]);
@@ -36,9 +39,11 @@ export default function Dashboard() {
   const [counts, setCounts] = useState({
     factories: 0,
     orders: 0,
-    products: 0,
+    models: 0,
     dealers: 0,
+    subDealers: 0,
     distributors: 0,
+    sales: 0,
   });
   const [orderStats, setOrderStats] = useState({
     total: 0,
@@ -50,19 +55,33 @@ export default function Dashboard() {
   const fetchAnalyticsData = async () => {
     try {
       const token = localStorage.getItem("token");
-      const [salesResponse, assignedProductsResponse] = await Promise.all([
-        axios.get(`${import.meta.env.VITE_API_URL}/api/sales/all`, {
+      const promises = [];
+      
+      if (isAdmin || hasAnyPrivilege('sales')) {
+        promises.push(axios.get(`${import.meta.env.VITE_API_URL}/api/sales/all`, {
           headers: { Authorization: `Bearer ${token}` },
-        }),
-        axios.get(
+        }));
+      } else {
+        promises.push(Promise.resolve({ data: [] }));
+      }
+
+      if (isAdmin || (hasAnyPrivilege('sales') && hasAnyPrivilege('distributors'))) {
+        promises.push(axios.get(
           `${import.meta.env.VITE_API_URL}/api/sales/assigned-products`,
           { headers: { Authorization: `Bearer ${token}` } },
-        ),
-      ]);
-      setSales(salesResponse.data);
-      setAssignedProducts(assignedProductsResponse.data);
+        ));
+      } else {
+        promises.push(Promise.resolve({ data: [] }));
+      }
+
+      const results = await Promise.all(promises);
+      
+      if (results[0]) setSales(results[0].data);
+      if (results[1]) setAssignedProducts(results[1].data);
     } catch (error) {
-      console.error("Error fetching analytics data:", error);
+      if (error.response?.status !== 403) {
+          console.error("Error fetching analytics data:", error);
+      }
     }
   };
 
@@ -70,14 +89,25 @@ export default function Dashboard() {
     const fetchDashboardData = async () => {
       setLoading(true);
       try {
-        const [countsResponse, statsResponse] = await Promise.all([
-          axios.get(`${import.meta.env.VITE_API_URL}/api/dashboard/counts`),
-          axios.get(`${import.meta.env.VITE_API_URL}/api/dashboard/stats`),
-        ]);
-        setCounts(countsResponse.data);
-        setOrderStats(statsResponse.data);
+        const promises = [
+          axios.get(`${import.meta.env.VITE_API_URL}/api/dashboard/counts`)
+        ];
+        
+        if (isAdmin || hasAnyPrivilege('orders')) {
+          promises.push(axios.get(`${import.meta.env.VITE_API_URL}/api/dashboard/stats`));
+        }
+
+        const [countsResponse, statsResponse] = await Promise.all(promises);
+        
+        setCounts(prev => ({ ...prev, ...countsResponse.data }));
+        
+        if (statsResponse) {
+          setOrderStats(statsResponse.data);
+        }
       } catch (error) {
-        console.error("Error fetching dashboard data:", error);
+        if (error.response?.status !== 403) {
+            console.error("Error fetching dashboard data:", error);
+        }
       } finally {
         setLoading(false);
       }
@@ -116,27 +146,7 @@ export default function Dashboard() {
       icon: <Building className="w-5 h-5" />,
       bg: "#7C3AED",
       path: "/factory-management",
-    },
-    {
-      title: "Total Models",
-      count: counts.models,
-      icon: <Package className="w-5 h-5" />,
-      bg: "#EF4444",
-      path: "/management",
-    },
-    {
-      title: "Total Distributors",
-      count: counts.distributors,
-      icon: <Truck className="w-5 h-5" />,
-      bg: "#F59E0B",
-      path: "/distributors",
-    },
-    {
-      title: "Total Dealers",
-      count: counts.dealers,
-      icon: <Users className="w-5 h-5" />,
-      bg: "#FB923C",
-      path: "/dealers",
+      section: "factories"
     },
     {
       title: "Total Orders",
@@ -144,8 +154,43 @@ export default function Dashboard() {
       icon: <ShoppingCart className="w-5 h-5" />,
       bg: "#0EA5E9",
       path: "/orders",
+      section: "orders"
+    },
+    {
+      title: "Sold Products",
+      count: counts.sales,
+      icon: <BarChart2 className="w-5 h-5" />,
+      bg: "#10B981",
+      path: "/sales",
+      section: "sales"
+    },
+    {
+      title: "Total Distributors",
+      count: counts.distributors,
+      icon: <Truck className="w-5 h-5" />,
+      bg: "#F59E0B",
+      path: "/distributors",
+      section: "distributors"
+    },
+    {
+      title: "Total Dealers",
+      count: counts.dealers,
+      icon: <Users className="w-5 h-5" />,
+      bg: "#FB923C",
+      path: "/dealers",
+      section: "dealers"
+    },
+    {
+      title: "Total Sub Dealers",
+      count: counts.subDealers,
+      icon: <Users className="w-5 h-5" />,
+      bg: "#8B5CF6",
+      path: "/sub-dealers",
+      section: "dealers"
     },
   ];
+
+  const filteredCardData = cardData.filter(card => isAdmin || hasAnyPrivilege(card.section));
 
   const TabButton = ({ id, label, icon: Icon, isActive, onClick }) => (
     <motion.button
@@ -176,13 +221,15 @@ export default function Dashboard() {
             isActive={activeTab === "overview"}
             onClick={setActiveTab}
           />
-          <TabButton
-            id="analytics"
-            label="Analytics"
-            icon={BarChart2}
-            isActive={activeTab === "analytics"}
-            onClick={setActiveTab}
-          />
+          {(isAdmin || hasAnyPrivilege('sales')) && (
+            <TabButton
+              id="analytics"
+              label="Analytics"
+              icon={BarChart2}
+              isActive={activeTab === "analytics"}
+              onClick={setActiveTab}
+            />
+          )}
         </motion.div>
 
         <AnimatePresence mode="wait">
@@ -198,70 +245,53 @@ export default function Dashboard() {
               <div>
                 <div className="p-1 bg-white min-h-50 mt-3 rounded-xl">
                   <div className="p-3 sm:p-6">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 lg:gap-1">
-                      {cardData.map((card, index) => (
-                        <Link to={card.path} key={index}>
-                          <div
-                            className="rounded-xl shadow-card p-4 sm:p-6 text-white transition-transform hover:scale-102"
-                            style={{ background: card.bg }}
-                          >
-                            <div className="flex items-start justify-between">
-                              <div>
-                                <div className="bg-white p-2 rounded-md inline-flex items-center justify-center mb-3 shadow-sm">
-                                  <span style={{ color: card.bg }}>
-                                    {card.icon}
-                                  </span>
-                                </div>
-                                <h3 className="text-sm font-semibold mb-1 text-white/90">
-                                  {card.title}
-                                </h3>
-                                {loading ? (
-                                  <div className="animate-pulse bg-white/20 h-8 w-16 rounded-md"></div>
-                                ) : (
-                                  <p className="text-2xl sm:text-2xl font-bold">
-                                    {card.count}
-                                  </p>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        </Link>
-                      ))}
-                    </div>
+                    <DashboardSummaryLayout
+                      greetingTitle="Welcome back"
+                      greetingName={user?.name || user?.username || "Admin"}
+                      greetingMessage="Your command center is ready. Review today's operational snapshot across factories, inventory, partners, orders, and sales."
+                      cards={filteredCardData}
+                      loading={loading}
+                    />
                   </div>
                 </div>
 
-                <div className="flex flex-col lg:flex-row gap-4 mt-4">
-                  <div className="bg-white w-full rounded-xl p-5">
-                    <h1 className="mb-5 font-bold text-lg">
-                      Order Items Status
-                    </h1>
-                    <OrderItemsPieChart />
+                {(isAdmin || hasAnyPrivilege('orders')) && (
+                  <div className="flex flex-col lg:flex-row gap-4 mt-4">
+                    <div className="bg-white w-full rounded-xl p-5">
+                      <h1 className="mb-5 font-bold text-lg">
+                        Order Items Status
+                      </h1>
+                      <OrderItemsPieChart />
+                    </div>
                   </div>
-                </div>
+                )}
 
                 <div className="flex flex-col lg:flex-row gap-4 mt-4"></div>
               </div>
             )}
 
-            {activeTab === "analytics" && (
+            {activeTab === "analytics" && (isAdmin || hasAnyPrivilege('sales')) && (
               <div className="p-1">
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   <TopSoldProducts sales={sales} />
                   <SalesProgress sales={sales} />
-                  <CustomerGrowthChart sales={sales} />
-                  <DistributorSalesHistogram
-                    assignedProducts={assignedProducts}
-                  />
-                  <div className="lg:col-span-2">
-                    <TotalRevenueChart sales={sales} />
-                  </div>
+                  {(isAdmin || hasAnyPrivilege('customers')) && <CustomerGrowthChart sales={sales} />}
+                  {(isAdmin || hasAnyPrivilege('distributors')) && (
+                    <DistributorSalesHistogram
+                      assignedProducts={assignedProducts}
+                    />
+                  )}
+                  {isAdmin && (
+                    <div className="lg:col-span-2">
+                      <TotalRevenueChart sales={sales} />
+                    </div>
+                  )}
                 </div>
 
                 {/* Sales List Table */}
                 <div className="mt-8 bg-white rounded-xl shadow-md border border-gray-200 overflow-hidden">
-                  <div className="px-6 py-4 border-b border-gray-200">
-                    <h2 className="text-lg font-bold text-gray-800">All Sales</h2>
+                  <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+                    <h2 className="text-lg font-bold text-gray-800">Recent Sales</h2>
                   </div>
                   <div className="overflow-x-auto">
                     <table className="min-w-full divide-y divide-gray-200 text-sm">
@@ -275,7 +305,7 @@ export default function Dashboard() {
                         </tr>
                       </thead>
                       <tbody className="bg-white divide-y divide-gray-200">
-                        {sales.map((sale) => (
+                        {sales.slice(0, 10).map((sale) => (
                           <tr key={sale._id} className="hover:bg-gray-50">
                             <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{sale.product?.productName || "-"}</td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{sale.product?.serialNumber || "-"}</td>
@@ -315,6 +345,15 @@ export default function Dashboard() {
                         )}
                       </tbody>
                     </table>
+                  </div>
+                  <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex justify-end">
+                    <Link
+                      to="/sales"
+                      className="inline-flex items-center text-sm font-medium text-blue-600 hover:text-blue-800 transition-colors"
+                    >
+                      View All Sales
+                      <Edit className="ml-2 h-4 w-4 rotate-[-90deg]" /> {/* Reusing Edit as a placeholder for an arrow, or better just use text */}
+                    </Link>
                   </div>
                 </div>
               </div>

@@ -83,6 +83,12 @@ const executiveSchema = new mongoose.Schema(
             ref: "Dealer",
           },
         ],
+        subDealers: [
+          {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "SubDealer",
+          },
+        ],
       },
     ],
   },

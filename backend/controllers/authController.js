@@ -11,9 +11,9 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken"; // Import jsonwebtoken
 
 // Helper function to generate JWT
-const generateToken = (id, role, distributor, factory, dealer, assignedDistributors) => {
+const generateToken = (id, role, distributor, factory, dealer, subDealer, assignedDistributors) => {
   return jwt.sign(
-    { id, role, distributor, factory, dealer, assignedDistributors },
+    { id, role, distributor, factory, dealer, subDealer, assignedDistributors },
     process.env.JWT_SECRET,
     {
       expiresIn: "6h",
@@ -108,6 +108,7 @@ export const signupAdmin = async (req, res) => {
         populatedUser.distributor?._id,
         populatedUser.factory?._id,
         populatedUser.dealer?._id,
+        populatedUser.subDealer?._id || populatedUser.subDealer,
       ),
     };
 
@@ -142,6 +143,12 @@ export const login = async (req, res) => {
         role,
         isActive: true,
       }).populate("dealer");
+    } else if (role === "sub_dealer") {
+      user = await User.findOne({
+        username,
+        role,
+        isActive: true,
+      }).populate("subDealer");
     } else if (role === "executive") {
       user = await User.findOne({
         username,
@@ -194,6 +201,7 @@ export const login = async (req, res) => {
       factory: user.factory,
       distributor: user.distributor,
       dealer: user.dealer,
+      subDealer: user.subDealer,
       executive: user.executive,
       assignedDistributors: user.executive?.assignedDistributors || [],
       token: generateToken(
@@ -202,6 +210,7 @@ export const login = async (req, res) => {
         user.distributor?._id,
         user.factory?._id,
         user.dealer?._id,
+        user.subDealer?._id || user.subDealer,
         user.executive?.assignedDistributors?.map((assignment) => assignment.distributorId?._id || assignment.distributorId) || [],
       ), // Generate and include token with role
     };

@@ -4,13 +4,13 @@ import { toast } from 'react-hot-toast';
 import { walletService } from '../../../services/walletService';
 import { AuthContext } from '../../../context/AuthContext';
 import WalletDetailsModal from './components/WalletDetailsModal';
+import { Link } from 'react-router-dom';
 
 const formatCurrency = (value) => `Rs. ${Number(value || 0).toLocaleString('en-IN')}`;
 
 export default function Wallets() {
   const { isAdmin, hasPrivilege } = useContext(AuthContext);
   const canApprovePayouts = isAdmin || hasPrivilege('sales', 'view');
-  const [showAllOverviewTransactions, setShowAllOverviewTransactions] = useState(false);
   const [overview, setOverview] = useState({
     distributors: [],
     dealers: [],
@@ -37,7 +37,7 @@ export default function Wallets() {
       setLoading(true);
       const [overviewResult, configResult] = await Promise.allSettled([
         walletService.getOverview({
-          transactionsLimit: showAllOverviewTransactions ? 'all' : 5,
+          transactionsLimit: 10,
         }),
         isAdmin ? axios.get(`${import.meta.env.VITE_API_URL}/api/billing-config`) : Promise.resolve(null),
       ]);
@@ -90,7 +90,7 @@ export default function Wallets() {
 
   useEffect(() => {
     fetchOverview();
-  }, [showAllOverviewTransactions, isAdmin]);
+  }, [isAdmin]);
 
   const loadWalletDetails = async (entityType, entityId, entityName) => {
     setSelectedWallet({ entityType, entityId, entityName });
@@ -333,21 +333,13 @@ export default function Wallets() {
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
             <div className="mb-4 flex items-center justify-between gap-4">
               <h2 className="text-lg font-semibold text-gray-900">Recent Wallet Activity</h2>
-              {!showAllOverviewTransactions && (
-                <button
-                  onClick={() => setShowAllOverviewTransactions(true)}
-                  className="rounded-md border border-blue-200 px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-50"
-                >
-                  Load all transactions
-                </button>
-              )}
             </div>
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Type</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Source</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Name</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Status</th>
                     <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Amount</th>
                     <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Created</th>
                   </tr>
@@ -355,14 +347,28 @@ export default function Wallets() {
                 <tbody className="divide-y divide-gray-200 bg-white">
                   {overview.recentTransactions.map((item) => (
                     <tr key={item._id}>
-                      <td className="px-4 py-4 text-sm capitalize text-gray-900">{item.entityType}</td>
-                      <td className="px-4 py-4 text-sm capitalize text-gray-700">{item.source.replaceAll('_', ' ')}</td>
-                      <td className="px-4 py-4 text-sm text-gray-700">{formatCurrency(item.amount)}</td>
+                      <td className="px-4 py-4 text-sm text-gray-900">
+                        {entityNameMap[`${item.entityType}:${item.entityId}`] || item.entityId}
+                      </td>
+                      <td className="px-4 py-4 text-sm text-gray-700">
+                        {item.type === 'credit' ? 'Added to wallet' : 'Deducted from wallet'}
+                      </td>
+                      <td className={`px-4 py-4 text-sm font-medium ${item.type === 'credit' ? 'text-green-600' : 'text-red-600'}`}>
+                        {item.type === 'credit' ? '+' : '-'}{formatCurrency(item.amount)}
+                      </td>
                       <td className="px-4 py-4 text-sm text-gray-700">{new Date(item.createdAt).toLocaleString()}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
+            </div>
+            <div className="mt-4 flex justify-end">
+              <Link
+                to="/wallets/all"
+                className="rounded-lg border border-blue-600 px-4 py-2 text-sm font-medium text-blue-600 hover:bg-blue-50 transition-colors"
+              >
+                View All Activity
+              </Link>
             </div>
           </div>
         </>

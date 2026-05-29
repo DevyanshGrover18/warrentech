@@ -1,8 +1,8 @@
 import { useState, useEffect, useContext } from 'react';
 import { LayoutDashboard, Clock, CheckCircle, Briefcase } from 'lucide-react';
-import { Link } from 'react-router-dom';
 import axios from 'axios';
 import { AuthContext } from '../../../context/AuthContext';
+import DashboardSummaryLayout from '../../global/DashboardSummaryLayout';
 
 export default function TechnicianDashboard() {
     const [stats, setStats] = useState({ total: 0, assigned: 0, inProgress: 0, completed: 0 });
@@ -45,70 +45,23 @@ export default function TechnicianDashboard() {
         );
     }
 
+    const cardData = [
+        { title: 'Total Jobs', count: stats.total, icon: <Briefcase className="w-5 h-5" />, bg: '#3B82F6', path: '/technician/requests' },
+        { title: 'New Jobs', count: stats.assigned, icon: <Clock className="w-5 h-5" />, bg: '#6366F1', path: '/technician/requests?status=Assigned' },
+        { title: 'In Progress', count: stats.inProgress, icon: <LayoutDashboard className="w-5 h-5" />, bg: '#FFA000', path: '/technician/requests?status=In Progress' },
+        { title: 'Completed Jobs', count: stats.completed, icon: <CheckCircle className="w-5 h-5" />, bg: '#10B981', path: '/technician/requests?status=Completed' },
+    ];
+
     return (
         <div className="p-6">
-            <div className="mb-6">
-                <h1 className="text-2xl font-bold text-gray-900">Technician Dashboard</h1>
-                <p className="text-gray-600 mt-2">Welcome back, {user?.username}</p>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                <Link to="/technician/requests">
-                    <div className="rounded-xl shadow-card p-6 text-white transition-transform hover:scale-102 h-full" style={{ background: '#3B82F6' }}>
-                        <div className="flex items-start justify-between">
-                            <div>
-                                <div className="bg-white p-2 rounded-md inline-flex items-center justify-center mb-3 shadow-sm">
-                                    <Briefcase className="w-5 h-5" style={{ color: '#3B82F6' }} />
-                                </div>
-                                <h3 className="text-sm font-semibold mb-1 text-white/90">Total Jobs</h3>
-                                <p className="text-2xl font-bold">{stats.total}</p>
-                            </div>
-                        </div>
-                    </div>
-                </Link>
-
-                <Link to="/technician/requests?status=Assigned">
-                    <div className="rounded-xl shadow-card p-6 text-white transition-transform hover:scale-102 h-full" style={{ background: '#6366F1' }}>
-                        <div className="flex items-start justify-between">
-                            <div>
-                                <div className="bg-white p-2 rounded-md inline-flex items-center justify-center mb-3 shadow-sm">
-                                    <Clock className="w-5 h-5" style={{ color: '#6366F1' }} />
-                                </div>
-                                <h3 className="text-sm font-semibold mb-1 text-white/90">New Jobs</h3>
-                                <p className="text-2xl font-bold">{stats.assigned}</p>
-                            </div>
-                        </div>
-                    </div>
-                </Link>
-
-                <Link to="/technician/requests?status=In Progress">
-                    <div className="rounded-xl shadow-card p-6 text-white transition-transform hover:scale-102 h-full" style={{ background: '#FFA000' }}>
-                        <div className="flex items-start justify-between">
-                            <div>
-                                <div className="bg-white p-2 rounded-md inline-flex items-center justify-center mb-3 shadow-sm">
-                                    <LayoutDashboard className="w-5 h-5" style={{ color: '#FFA000' }} />
-                                </div>
-                                <h3 className="text-sm font-semibold mb-1 text-white/90">In Progress</h3>
-                                <p className="text-2xl font-bold">{stats.inProgress}</p>
-                            </div>
-                        </div>
-                    </div>
-                </Link>
-
-                <Link to="/technician/requests?status=Completed">
-                    <div className="rounded-xl shadow-card p-6 text-white transition-transform hover:scale-102 h-full" style={{ background: '#10B981' }}>
-                        <div className="flex items-start justify-between">
-                            <div>
-                                <div className="bg-white p-2 rounded-md inline-flex items-center justify-center mb-3 shadow-sm">
-                                    <CheckCircle className="w-5 h-5" style={{ color: '#10B981' }} />
-                                </div>
-                                <h3 className="text-sm font-semibold mb-1 text-white/90">Completed Jobs</h3>
-                                <p className="text-2xl font-bold">{stats.completed}</p>
-                            </div>
-                        </div>
-                    </div>
-                </Link>
-            </div>
+            <h1 className="text-2xl font-bold text-gray-900 mb-4">Technician Dashboard</h1>
+            <DashboardSummaryLayout
+                greetingTitle="Welcome back"
+                greetingName={user?.name || user?.username || 'Technician'}
+                greetingMessage="Your service queue is ready. Review new assignments, jobs in progress, and completed work before heading into the next task."
+                cards={cardData}
+                loading={loading}
+            />
         </div>
     );
 }

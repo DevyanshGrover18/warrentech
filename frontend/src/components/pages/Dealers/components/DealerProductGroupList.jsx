@@ -1,34 +1,32 @@
-import React from 'react';
-import { groupProductsByConfiguration, getOrderTypeDisplay } from '../../Distributors/utils';
+import React, { useMemo, useState } from 'react';
+import { Box, X } from 'lucide-react';
 
-export default function DealerProductGroupList({ products, selectedProductGroups = [], setSelectedProductGroups, hideCheckbox = false }) {
-    // Map products with distributor name for easier access
-    const productsWithDistributor = products.map(item => ({
+export default function DealerProductGroupList({ products, hideCheckbox = false }) {
+    const [isModelModalOpen, setIsModelModalOpen] = useState(false);
+    const [activeModelId, setActiveModelId] = useState(null);
+
+    const productsWithDetails = useMemo(() => products.map(item => ({
         ...item.product,
         distributorName: item.distributor?.name || 'N/A',
-    }));
+    })), [products]);
 
-    // Group products based on configuration
-    const groupedProducts = groupProductsByConfiguration(productsWithDistributor);
+    const modelGroups = useMemo(() => {
+        const map = {};
+        productsWithDetails.forEach(p => {
+            const mid = p.model?._id || 'unknown';
+            if (!map[mid]) map[mid] = { model: p.model || { name: 'Unknown' }, count: 0, items: [] };
+            map[mid].count += 1;
+            map[mid].items.push(p);
+        });
+        return Object.values(map);
+    }, [productsWithDetails]);
 
-    const handleSelectAll = (e) => {
-        if (e.target.checked) {
-            setSelectedProductGroups(groupedProducts.filter(g => !g.productsInBox.every(p => p.sold)));
-        } else {
-            setSelectedProductGroups([]);
-        }
+    const openModelModal = (modelId) => {
+        setActiveModelId(modelId);
+        setIsModelModalOpen(true);
     };
 
-    const handleSelectRow = (e, productGroup) => {
-        if (e.target.checked) {
-            setSelectedProductGroups([...selectedProductGroups, productGroup]);
-        } else {
-            setSelectedProductGroups(selectedProductGroups.filter(group => group._id !== productGroup._id));
-        }
-    };
-
-    // If no products found, show empty message
-    if (!groupedProducts || groupedProducts.length === 0) {
+    if (!modelGroups || modelGroups.length === 0) {
         return (
             <div className="text-center py-8 text-gray-500">
                 No products found for this dealer
@@ -36,90 +34,83 @@ export default function DealerProductGroupList({ products, selectedProductGroups
         );
     }
 
+    const modalProducts = productsWithDetails.filter(p => p.model?._id === activeModelId);
+
     return (
-        <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                    <tr>
-                        {!hideCheckbox && (
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                <input type="checkbox" onChange={handleSelectAll} />
-                            </th>
-                        )}
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product Name</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Box Type</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Serial Numbers</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Assigned By</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                    </tr>
-                </thead>
-
-                <tbody className="bg-white divide-y divide-gray-200">
-                    {groupedProducts.map((group) => {
-                        const orderTypeInfo = getOrderTypeDisplay(group.orderType);
-                        const firstProduct = group.productsInBox?.[0];
-                        const isSelected = selectedProductGroups.some(g => g._id === group._id);
-                        const allSold = group.productsInBox.every(p => p.sold);
-                        const partiallySold = group.productsInBox.some(p => p.sold) && !allSold;
-
-                        return (
-                            <tr
-                                key={group._id}
-                                className={`hover:bg-gray-50 ${isSelected ? 'bg-blue-100' : ''} ${allSold ? 'bg-gray-100' : ''}`}
-                            >
-                                {!hideCheckbox && (
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                                        <input
-                                            type="checkbox"
-                                            checked={isSelected}
-                                            onChange={(e) => handleSelectRow(e, group)}
-                                            disabled={allSold}
-                                        />
-                                    </td>
-                                )}
-
-                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                                    {group.productName}
-                                </td>
-
+        <div className="space-y-4">
+            <div className="overflow-x-auto rounded-lg border border-gray-200">
+                <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                        <tr>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Model</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">No. of Products</th>
+                        </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                        {modelGroups.map((mg) => (
+                            <tr key={mg.model?._id || mg.model.name} className="hover:bg-gray-50">
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{mg.model?.name || 'Unknown'}</td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                    <span
-                                        className={`px-2 py-1 text-xs font-medium rounded-full ${orderTypeInfo.bgColor} ${orderTypeInfo.textColor}`}
+                                    <button
+                                        onClick={() => openModelModal(mg.model?._id)}
+                                        className="inline-flex items-center px-2.5 py-1.5 border border-[#4d55f5] text-xs font-medium rounded text-[#4d55f5] hover:bg-[#4d55f5] hover:text-white transition-colors"
                                     >
-                                        {orderTypeInfo.label}
-                                    </span>
-                                </td>
-
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                    {group.productsInBox?.map((product) => (
-                                        <div key={product._id}>{product.serialNumber}</div>
-                                    ))}
-                                </td>
-
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                    {firstProduct?.distributorName || 'N/A'}
-                                </td>
-
-                                <td className="px-6 py-4 whitespace-nowrap">
-                                    <span
-                                        className={`px-2 py-1 text-xs font-medium rounded-full ${
-                                            allSold
-                                                ? 'bg-red-100 text-red-800'
-                                                : partiallySold
-                                                    ? 'bg-yellow-100 text-yellow-800'
-                                                    : firstProduct?.status === 'Active'
-                                                        ? 'bg-green-100 text-green-800'
-                                                        : 'bg-red-100 text-red-800'
-                                        }`}
-                                    >
-                                        {allSold ? 'Sold' : partiallySold ? 'Partially Sold' : firstProduct?.status}
-                                    </span>
+                                        <Box className="h-4 w-4 mr-1" />
+                                        {mg.count || 0} Total Products
+                                    </button>
                                 </td>
                             </tr>
-                        );
-                    })}
-                </tbody>
-            </table>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+
+            {isModelModalOpen && (
+                <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-black/40" onClick={() => setIsModelModalOpen(false)}></div>
+                    <div className="relative z-10 flex h-[calc(100vh-4rem)] w-[calc(100vw-4rem)] max-w-[90vw] flex-col rounded-2xl border border-gray-200 bg-white shadow-xl">
+                        <div className="flex items-start justify-between border-b border-gray-200 px-6 py-4">
+                            <h3 className="text-lg font-bold text-gray-900">
+                                Model Details: {modelGroups.find(m => m.model?._id === activeModelId)?.model?.name || 'Details'}
+                            </h3>
+                            <button onClick={() => setIsModelModalOpen(false)} className="rounded-full p-2 text-gray-500 hover:bg-gray-100">
+                                <X className="h-5 w-5" />
+                            </button>
+                        </div>
+
+                        <div className="flex-1 overflow-auto p-6">
+                            <div className="overflow-x-auto rounded-xl border border-gray-200">
+                                <table className="min-w-full divide-y divide-gray-200">
+                                    <thead className="bg-gray-50">
+                                        <tr>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product Name</th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Serial Number</th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Box Type</th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Assigned By</th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="bg-white divide-y divide-gray-200">
+                                        {modalProducts.map((p) => (
+                                            <tr key={p._id} className="hover:bg-gray-50">
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{p.productName}</td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{p.serialNumber}</td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{p.unitsPerBox}N</td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{p.distributorName}</td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm">
+                                                    <span className={`px-2 py-1 text-xs font-medium rounded-full ${p.sold ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'}`}>
+                                                        {p.sold ? 'Sold' : 'In Stock'}
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

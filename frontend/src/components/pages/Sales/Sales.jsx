@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useContext } from "react";
 import axios from "axios";
 import { toast } from "react-hot-toast";
 import {
@@ -21,6 +21,7 @@ import {
 import { confirmDelete } from "../../global/deleteConfirm";
 import EditSaleModal from "../Dealers/components/EditSaleModal";
 import EditProductModal from "../Products/components/EditProductModal";
+import { AuthContext } from "../../../context/AuthContext";
 
 const API_URL = import.meta.env.VITE_API_URL;
 const PRODUCT_API_URL = `${API_URL}/api/products`;
@@ -72,6 +73,7 @@ const getCustomerDetails = (product) => {
 };
 
 export default function Sales() {
+  const { isAdmin, hasPrivilege, isExecutiveAuthenticated } = useContext(AuthContext);
   const [products, setProducts] = useState([]);
   const [models, setModels] = useState([]);
   const [factories, setFactories] = useState([]);
@@ -104,9 +106,28 @@ export default function Sales() {
     try {
       setLoading(true);
       const response = await axios.get(PRODUCT_API_URL);
-      setProducts(response.data || []);
+      const data = response.data || [];
+      setProducts(data);
+
+      if (isExecutiveAuthenticated) {
+        const uniqueFactories = [...new Map(data
+            .filter(product => product.factory)
+            .map(product => [product.factory._id, product.factory])
+        ).values()];
+        setFactories(uniqueFactories);
+
+        const uniqueModels = [...new Map(data
+            .filter(product => product.model)
+            .map(product => [product.model._id, product.model])
+        ).values()];
+        setModels(uniqueModels);
+      }
     } catch (error) {
-      toast.error(error.response?.data?.message || "Error fetching sales data");
+      if (error.response?.status === 403) {
+        setProducts([]);
+      } else {
+        toast.error(error.response?.data?.message || "Error fetching sales data");
+      }
     } finally {
       setLoading(false);
     }
@@ -119,8 +140,10 @@ export default function Sales() {
           getModels(),
           getFactories(),
         ]);
-        setModels(modelsData || []);
-        setFactories(factoriesData || []);
+        if (!isExecutiveAuthenticated) {
+            setModels(modelsData || []);
+            setFactories(factoriesData || []);
+        }
       } catch (error) {
         toast.error("Failed to fetch models or factories");
       }
@@ -128,7 +151,7 @@ export default function Sales() {
 
     fetchInitialData();
     fetchProducts();
-  }, []);
+  }, [isExecutiveAuthenticated]);
 
   const filteredProducts = useMemo(() => {
     const startCounter = getSerialCounter(startSerialNumber);
@@ -701,24 +724,28 @@ export default function Sales() {
                           </td>
                           <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
                             <div className="flex items-center gap-2">
-                              <button
-                                onClick={() => {
-                                  setEditingProduct(product);
-                                  setEditProductModalOpen(true);
-                                }}
-                                className="inline-flex items-center px-2.5 py-1.5 border border-blue-200 text-xs font-medium rounded text-blue-700 hover:bg-blue-50 transition-colors"
-                              >
-                                <Edit className="h-4 w-4 mr-1" />
-                                Edit
-                              </button>
-                              <button
-                                onClick={() => handleDeleteProduct(product._id)}
-                                disabled={deletingProductId === product._id}
-                                className="inline-flex items-center px-2.5 py-1.5 border border-red-200 text-xs font-medium rounded text-red-700 hover:bg-red-50 transition-colors disabled:opacity-50"
-                              >
-                                <Trash2 className="h-4 w-4 mr-1" />
-                                Delete
-                              </button>
+                              {(isAdmin || hasPrivilege('sales', 'modify')) && (
+                                <button
+                                  onClick={() => {
+                                    setEditingProduct(product);
+                                    setEditProductModalOpen(true);
+                                  }}
+                                  className="inline-flex items-center px-2.5 py-1.5 border border-blue-200 text-xs font-medium rounded text-blue-700 hover:bg-blue-50 transition-colors"
+                                >
+                                  <Edit className="h-4 w-4 mr-1" />
+                                  Edit
+                                </button>
+                              )}
+                              {(isAdmin || hasPrivilege('sales', 'delete')) && (
+                                <button
+                                  onClick={() => handleDeleteProduct(product._id)}
+                                  disabled={deletingProductId === product._id}
+                                  className="inline-flex items-center px-2.5 py-1.5 border border-red-200 text-xs font-medium rounded text-red-700 hover:bg-red-50 transition-colors disabled:opacity-50"
+                                >
+                                  <Trash2 className="h-4 w-4 mr-1" />
+                                  Delete
+                                </button>
+                              )}
                             </div>
                           </td>
                         </tr>

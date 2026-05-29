@@ -13,6 +13,7 @@ const SaleModal = ({ isOpen, onClose, productSelection, onSale }) => {
   const [customerCity, setCustomerCity] = useState('');
   const [plumberName, setPlumberName] = useState('');
   const [plumberPhone, setPlumberPhone] = useState('');
+  const [soldBy, setSoldBy] = useState('');
   const [states, setStates] = useState([]); // State for fetched states
   const [cities, setCities] = useState([]); // State for fetched cities
 
@@ -27,6 +28,7 @@ const SaleModal = ({ isOpen, onClose, productSelection, onSale }) => {
       setCustomerCity('');
       setPlumberName('');
       setPlumberPhone('');
+      setSoldBy('');
     }
   }, [isOpen, productSelection]);
 
@@ -64,7 +66,7 @@ const SaleModal = ({ isOpen, onClose, productSelection, onSale }) => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    onSale({ customerName, customerPhone, customerEmail, customerAddress, customerState, customerCity, plumberName, plumberPhone, productSelection });
+    onSale({ customerName, customerPhone, customerEmail, customerAddress, customerState, customerCity, plumberName, plumberPhone, soldBy, productSelection });
     onClose();
   };
 
@@ -137,6 +139,10 @@ const SaleModal = ({ isOpen, onClose, productSelection, onSale }) => {
               <div className="mt-4">
                 <label htmlFor="plumberPhone" className="block text-sm font-medium text-gray-700">Plumber Phone</label>
                 <input type="text" name="plumberPhone" id="plumberPhone" value={plumberPhone} onChange={(e) => setPlumberPhone(e.target.value)} className="mt-1 focus:ring-blue-500 focus:border-blue-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md py-2 px-2" />
+              </div>
+              <div className="mt-4">
+                <label htmlFor="soldBy" className="block text-sm font-medium text-gray-700">Sold By</label>
+                <input type="text" name="soldBy" id="soldBy" value={soldBy} onChange={(e) => setSoldBy(e.target.value)} className="mt-1 focus:ring-blue-500 focus:border-blue-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md py-2 px-2" />
               </div>
             </div>
             </div>

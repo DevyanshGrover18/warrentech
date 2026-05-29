@@ -31,6 +31,7 @@ export const ensureIncentiveSettings = async () => {
 };
 
 export const getIncentiveTypeForSale = (saleLike) => {
+    if (saleLike?.subDealer) return 'sub_dealer';
     if (saleLike?.dealer) return 'dealer';
     if (saleLike?.distributor) return 'distributor';
     return null;
@@ -39,6 +40,7 @@ export const getIncentiveTypeForSale = (saleLike) => {
 export const getIncentiveAmountForType = async (type) => {
     const settings = await ensureIncentiveSettings();
 
+    if (type === 'sub_dealer') return settings.subDealerPerSaleIncentive || 0;
     if (type === 'dealer') return settings.dealerPerSaleIncentive || 0;
     if (type === 'distributor') return settings.distributorPerSaleIncentive || 0;
     return 0;
@@ -74,7 +76,7 @@ export const recomputeSaleIncentive = async (sale, options = {}) => {
     const isComplete = isSaleFormComplete(sale);
 
     if (!isComplete) {
-        sale.incentiveEligible = false;
+        sale.incentiveEligible = true;
         if (sale.incentiveStatus !== 'approved' && sale.incentiveStatus !== 'rejected') {
             sale.incentiveStatus = 'incomplete';
         }

@@ -35,12 +35,13 @@ export const AuthProvider = ({ children }) => {
     }; // Function to trigger refresh
 
     const isAuthenticated = Boolean(user);
-    const isAdmin = isAuthenticated && user.role === 'admin';
-    const isFactoryAuthenticated = isAuthenticated && user.role === 'factory';
-    const isDistributorAuthenticated = isAuthenticated && user.role === 'distributor';
-    const isDealerAuthenticated = isAuthenticated && user.role === 'dealer';
-    const isTechnicianAuthenticated = isAuthenticated && user.role === 'technician';
-    const isExecutiveAuthenticated = isAuthenticated && user.role === 'executive';
+    const isAdmin = isAuthenticated && user?.role === 'admin';
+    const isFactoryAuthenticated = isAuthenticated && user?.role === 'factory';
+    const isDistributorAuthenticated = isAuthenticated && user?.role === 'distributor';
+    const isDealerAuthenticated = isAuthenticated && user?.role === 'dealer';
+    const isSubDealerAuthenticated = isAuthenticated && user?.role === 'sub_dealer';
+    const isTechnicianAuthenticated = isAuthenticated && user?.role === 'technician';
+    const isExecutiveAuthenticated = isAuthenticated && user?.role === 'executive';
 
     // Check if user has required privileges (support both `privileges` and `accessControl` keys)
     const _privs = user?.privileges || user?.accessControl || null;
@@ -79,6 +80,7 @@ export const AuthProvider = ({ children }) => {
             isFactoryAuthenticated,
             isDistributorAuthenticated,
             isDealerAuthenticated,
+            isSubDealerAuthenticated,
             isTechnicianAuthenticated,
             isExecutiveAuthenticated,
             login,

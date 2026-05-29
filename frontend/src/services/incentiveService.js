@@ -3,8 +3,12 @@ import axios from 'axios';
 const API_URL = `${import.meta.env.VITE_API_URL}/api/incentives`;
 
 export const incentiveService = {
-  getIncentives: async (status = 'all') => {
-    const response = await axios.get(`${API_URL}?status=${status}`);
+  getIncentives: async (status = 'all', limit = null, page = 1) => {
+    let url = `${API_URL}?status=${status}`;
+    if (limit) {
+      url += `&limit=${limit}&page=${page}`;
+    }
+    const response = await axios.get(url);
     return response.data;
   },
   getSettings: async () => {

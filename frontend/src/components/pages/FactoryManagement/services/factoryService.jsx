@@ -9,6 +9,9 @@ export const getFactories = async (searchTerm) => {
         const response = await axios.get(searchTerm ? `${API_URL}?search=${searchTerm}` : API_URL);
         return response.data;
     } catch (error) {
+        if (error.response?.status === 403) {
+            return [];
+        }
         toast.error(error.response?.data?.message || 'Error fetching factories');
         throw error;
     }

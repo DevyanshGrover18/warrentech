@@ -37,6 +37,9 @@ export default function InventoryManagementModal({
   transferCount = 0,
   transferDisabled = true,
   onTransfer = () => {},
+  transferLabel = "Transfer to Distributor",
+  subDealers = [],
+  onAssignToSubDealer = null,
   rows = [
     {
       id: "sample-1",
@@ -56,6 +59,7 @@ export default function InventoryManagementModal({
   showingFrom = 1,
   showingTo = 1,
   totalItems = 1,
+  showEdit = true,
 }) {
   if (!isOpen) return null;
 
@@ -84,7 +88,7 @@ export default function InventoryManagementModal({
                   : "bg-blue-600 text-white hover:bg-blue-700"
               }`}
             >
-              Transfer to Distributor ({transferCount})
+              {transferLabel} ({transferCount})
             </button>
             <button
               type="button"
@@ -227,12 +231,14 @@ export default function InventoryManagementModal({
                     <td className="px-4 py-3">{row.factory}</td>
                     <td className="px-4 py-3">{row.distributor}</td>
                     <td className="px-4 py-3">
-                      <button
-                        onClick={() => onEdit(row.id)}
-                        className="text-blue-600 hover:text-blue-800"
-                      >
-                        Edit
-                      </button>
+                      {showEdit && (
+                        <button
+                          onClick={() => onEdit(row.id)}
+                          className="text-blue-600 hover:text-blue-800"
+                        >
+                          Edit
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}

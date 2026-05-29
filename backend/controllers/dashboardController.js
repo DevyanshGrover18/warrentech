@@ -3,9 +3,11 @@ import Order, { OrderItem } from '../models/Order.js';
 // import Product from '../models/Product.js';
 import mongoose from 'mongoose';
 import Dealer from '../models/Dealer.js';
+import SubDealer from '../models/SubDealer.js';
 import Distributor from '../models/Distributor.js';
 import Model from '../models/Model.js';
 import Sale from '../models/Sale.js';
+import UserRole from '../models/UserRole.js';
 
 import ReplacementRequest from '../models/ReplacementRequest.js';
 import Product from '../models/Product.js';
@@ -55,20 +57,41 @@ export const getOrderStats = async (req, res) => {
 // FIX: The floating try...catch block is now wrapped in a proper exported function.
 export const getDashboardStats = async (req, res) => {
     try {
-        const factoryCount = await Factory.countDocuments();
-        const orderCount = await Order.countDocuments();
-        // const productCount = await Product.countDocuments();
-        const dealerCount = await Dealer.countDocuments();
-        const distributorCount = await Distributor.countDocuments();
-        const modelCount = await Model.countDocuments();
+        const user = req.user;
+        const isAdmin = user.role === 'admin';
+        
+        let permissions = {};
+        if (user.role === 'member') {
+            const member = await UserRole.findById(user.id);
+            permissions = member?.accessControl || {};
+        }
+
+        const canView = (section) => {
+            if (isAdmin) return true;
+            const p = permissions[section];
+            if (!p) return false;
+            return !!(p.full || p.view || p.add || p.modify || p.delete);
+        };
+
+        const [factories, orders, dealers, subDealers, distributors, models, saleCount, productSoldCount] = await Promise.all([
+            canView('factories') ? Factory.countDocuments() : Promise.resolve(0),
+            canView('orders') ? Order.countDocuments() : Promise.resolve(0),
+            canView('dealers') ? Dealer.countDocuments() : Promise.resolve(0),
+            canView('dealers') ? SubDealer.countDocuments() : Promise.resolve(0),
+            canView('distributors') ? Distributor.countDocuments() : Promise.resolve(0),
+            canView('management') ? Model.countDocuments() : Promise.resolve(0),
+            canView('sales') ? Sale.countDocuments() : Promise.resolve(0),
+            canView('sales') ? Product.countDocuments({ sold: true }) : Promise.resolve(0)
+        ]);
 
         res.json({
-            factories: factoryCount,
-            orders: orderCount,
-            // products: productCount,
-            dealers: dealerCount,
-            distributors: distributorCount,
-            models: modelCount
+            factories,
+            orders,
+            dealers,
+            subDealers,
+            distributors,
+            models,
+            sales: Math.max(saleCount, productSoldCount)
         });
     } catch (error) {
         res.status(500).json({ message: error.message });
@@ -145,10 +168,13 @@ export const getExecutiveDashboardStats = async (req, res) => {
                 dealers: 0,
                 customers: 0,
                 replacementRequests: 0,
+                sales: 0
             });
         }
 
-        const [products, distributors, dealerIds, customerIds, replacementRequests] = await Promise.all([
+        const distributorObjectIds = distributorIds.map(id => new mongoose.Types.ObjectId(id));
+
+        const [products, distributors, dealerIds, customerIds, replacementRequests, saleRecordsCount, productSoldCount] = await Promise.all([
             Product.countDocuments({ distributor: { $in: distributorIds } }),
             Distributor.countDocuments({ _id: { $in: distributorIds } }),
             getDealerIdsForExecutiveScope(req.user),
@@ -165,11 +191,32 @@ export const getExecutiveDashboardStats = async (req, res) => {
                 { $unwind: '$productInfo' },
                 {
                     $match: {
-                        'productInfo.distributor': { $in: distributorIds.map(id => new mongoose.Types.ObjectId(id)) }
+                        'productInfo.distributor': { $in: distributorObjectIds }
                     }
                 },
                 { $count: 'count' }
             ]),
+            Sale.aggregate([
+                {
+                    $lookup: {
+                        from: 'products',
+                        localField: 'product',
+                        foreignField: '_id',
+                        as: 'productInfo'
+                    }
+                },
+                { $unwind: '$productInfo' },
+                {
+                    $match: {
+                        'productInfo.distributor': { $in: distributorObjectIds }
+                    }
+                },
+                { $count: 'count' }
+            ]),
+            Product.countDocuments({
+                distributor: { $in: distributorIds },
+                sold: true
+            })
         ]);
 
         res.json({
@@ -178,6 +225,7 @@ export const getExecutiveDashboardStats = async (req, res) => {
             dealers: dealerIds.length,
             customers: customerIds.length,
             replacementRequests: replacementRequests[0]?.count || 0,
+            sales: Math.max(saleRecordsCount[0]?.count || 0, productSoldCount)
         });
     } catch (error) {
         res.status(500).json({ message: error.message });

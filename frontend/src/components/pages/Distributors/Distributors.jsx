@@ -1,7 +1,6 @@
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import ReactDOM from "react-dom";
 import {
-  Search,
   Plus,
   X,
   FilePenLine,
@@ -19,6 +18,10 @@ import ExportToPdfButton from "../../global/ExportToPdfButton";
 import { confirmDelete } from "../../global/deleteConfirm";
 import WalletDetailsModal from "../Wallets/components/WalletDetailsModal";
 import WalletIconButton from "../Wallets/components/WalletIconButton";
+import PaginationBar from "../../global/PaginationBar";
+import { DistributorFilters } from "./components/DistributorFilters";
+import { useDistributorList } from "./hooks/useDistributorList";
+import { distributorService } from "../../../services/distributorService";
 
 const API_URL = `${import.meta.env.VITE_API_URL}/api/distributors`;
 
@@ -176,18 +179,30 @@ function MultiSelectDropdown({
 }
 
 function Distributors() {
-  const [searchTerm, setSearchTerm] = useState("");
+  const {
+    items: distributors,
+    loading,
+    isRefreshing,
+    page,
+    limit,
+    totalItems,
+    totalPages,
+    searchTerm,
+    filters,
+    setPage,
+    setLimit,
+    setSearchTerm,
+    setFilter,
+    resetFilters,
+    refresh,
+  } = useDistributorList();
   const [showDistributorModal, setShowDistributorModal] = useState(false);
-  const [distributors, setDistributors] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [selectedDistributor, setSelectedDistributor] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
   const [showProductsModal, setShowProductsModal] = useState(false);
   const [distributorProducts, setDistributorProducts] = useState([]);
   const [showDealersModal, setShowDealersModal] = useState(false);
   const [distributorDealers, setDistributorDealers] = useState([]);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(10);
   const [selectedDistributors, setSelectedDistributors] = useState([]);
   const [states, setStates] = useState([]);
   const [cities, setCities] = useState([]);
@@ -199,6 +214,10 @@ function Distributors() {
   const [assignmentDealerIds, setAssignmentDealerIds] = useState([]);
   const [assignmentDealers, setAssignmentDealers] = useState([]);
   const [assignmentLoadingDealers, setAssignmentLoadingDealers] =
+    useState(false);
+  const [assignmentSubDealerIds, setAssignmentSubDealerIds] = useState([]);
+  const [assignmentSubDealers, setAssignmentSubDealers] = useState([]);
+  const [assignmentLoadingSubDealers, setAssignmentLoadingSubDealers] =
     useState(false);
   const [assignmentSubmitting, setAssignmentSubmitting] = useState(false);
   const [selectedWalletDistributor, setSelectedWalletDistributor] = useState(null);
@@ -282,50 +301,22 @@ function Distributors() {
     }
   };
 
-  const totalPages = useMemo(
-    () => Math.ceil(distributors.length / itemsPerPage),
-    [distributors, itemsPerPage],
-  );
-  const paginatedDistributors = useMemo(() => {
-    const startIndex = (currentPage - 1) * itemsPerPage;
-    return distributors.slice(startIndex, startIndex + itemsPerPage);
-  }, [distributors, currentPage, itemsPerPage]);
-
-  // Fetch distributors
-  const fetchDistributors = async () => {
-    try {
-      setLoading(true);
-      const response = await axios.get(
-        searchTerm ? `${API_URL}?search=${searchTerm}` : API_URL,
-      );
-      setDistributors(response.data);
-    } catch (error) {
-      toast.error(
-        error.response?.data?.message || "Error fetching distributors",
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    const debounceSearch = setTimeout(() => {
-      fetchDistributors();
-    }, 300);
-
     if (newDistributor.state) {
       fetchCities(newDistributor.state);
     }
+  }, [newDistributor.state]);
 
-    return () => clearTimeout(debounceSearch);
-  }, [searchTerm, newDistributor.state]);
+  useEffect(() => {
+    setSelectedDistributors([]);
+  }, [page, limit, searchTerm, filters.state]);
 
   const handleAddDistributor = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
     try {
-      const response = await axios.post(API_URL, newDistributor);
-      setDistributors([...distributors, response.data]);
+      await distributorService.createDistributor(newDistributor);
+      await refresh();
       handleModalClose();
       toast.success("Distributor added successfully");
     } catch (error) {
@@ -339,15 +330,8 @@ function Distributors() {
     e.preventDefault();
     setIsSubmitting(true);
     try {
-      const response = await axios.put(
-        `${API_URL}/${selectedDistributor._id}`,
-        newDistributor,
-      );
-      setDistributors(
-        distributors.map((d) =>
-          d._id === selectedDistributor._id ? response.data : d,
-        ),
-      );
+      await distributorService.updateDistributor(selectedDistributor._id, newDistributor);
+      await refresh();
       handleModalClose();
       toast.success("Distributor updated successfully");
     } catch (error) {
@@ -369,8 +353,8 @@ function Distributors() {
     if (!confirmed) return;
 
     try {
-      await axios.delete(`${API_URL}/${distributorId}`);
-      setDistributors(distributors.filter((d) => d._id !== distributorId));
+      await distributorService.deleteDistributor(distributorId);
+      await refresh();
       toast.success("Distributor deleted successfully");
     } catch (error) {
       toast.error(
@@ -415,14 +399,19 @@ function Distributors() {
     setAssignmentExecutiveId("");
     setAssignmentDealerIds([]);
     setAssignmentDealers([]);
+    setAssignmentSubDealerIds([]);
+    setAssignmentSubDealers([]);
     setAssignmentLoadingDealers(false);
+    setAssignmentLoadingSubDealers(false);
   };
 
   const handleOpenExecutiveAssignment = async (distributor) => {
     setSelectedDistributor(distributor);
     setAssignmentExecutiveId(distributor.executive || "");
     setAssignmentDealerIds(distributor.assignmentDealerIds || []);
+    setAssignmentSubDealerIds(distributor.assignmentSubDealerIds || []);
     setAssignmentDealers([]);
+    setAssignmentSubDealers([]);
     setShowExecutiveAssignmentModal(true);
     setAssignmentLoadingDealers(true);
 
@@ -436,6 +425,40 @@ function Distributors() {
     }
   };
 
+  useEffect(() => {
+    if (!showExecutiveAssignmentModal) return;
+
+    if (assignmentDealerIds.length === 0) {
+      setAssignmentSubDealers([]);
+      setAssignmentSubDealerIds([]);
+      setAssignmentLoadingSubDealers(false);
+      return;
+    }
+
+    const fetchSubDealers = async () => {
+      setAssignmentLoadingSubDealers(true);
+      try {
+        const { data } = await axios.get(
+          `${import.meta.env.VITE_API_URL}/api/sub-dealers?dealerIds=${assignmentDealerIds.join(",")}`,
+        );
+        const nextSubDealers = data || [];
+        const validSubDealerIds = new Set(nextSubDealers.map((item) => item._id));
+        setAssignmentSubDealers(nextSubDealers);
+        setAssignmentSubDealerIds((prev) =>
+          prev.filter((id) => validSubDealerIds.has(id)),
+        );
+      } catch (error) {
+        setAssignmentSubDealers([]);
+        setAssignmentSubDealerIds([]);
+        toast.error("Error fetching sub dealers");
+      } finally {
+        setAssignmentLoadingSubDealers(false);
+      }
+    };
+
+    fetchSubDealers();
+  }, [assignmentDealerIds, showExecutiveAssignmentModal]);
+
   const handleExecutiveAssignmentSave = async (e) => {
     e.preventDefault();
 
@@ -446,14 +469,12 @@ function Distributors() {
 
     try {
       setAssignmentSubmitting(true);
-      await axios.patch(
-        `${API_URL}/${selectedDistributor._id}/executive-assignment`,
-        {
-          executiveId: assignmentExecutiveId,
-          dealerIds: assignmentDealerIds,
-        },
-      );
-      await fetchDistributors();
+      await distributorService.updateExecutiveAssignment(selectedDistributor._id, {
+        executiveId: assignmentExecutiveId,
+        dealerIds: assignmentDealerIds,
+        subDealerIds: assignmentSubDealerIds,
+      });
+      await refresh();
       closeExecutiveAssignmentModal();
       toast.success("Executive assignment updated successfully");
     } catch (error) {
@@ -484,12 +505,8 @@ function Distributors() {
 
   const handleStatusChange = async (distributorId, newStatus) => {
     try {
-      const response = await axios.patch(`${API_URL}/${distributorId}/status`, {
-        status: newStatus,
-      });
-      setDistributors(
-        distributors.map((d) => (d._id === distributorId ? response.data : d)),
-      );
+      await distributorService.updateDistributorStatus(distributorId, newStatus);
+      await refresh();
       toast.success("Distributor status updated successfully");
     } catch (error) {
       toast.error(error.response?.data?.message || "Error updating status");
@@ -518,8 +535,7 @@ function Distributors() {
 
   const handleSelectAll = (e) => {
     if (e.target.checked) {
-      // Select only the distributors visible on the current page
-      setSelectedDistributors(paginatedDistributors.map((d) => d._id));
+      setSelectedDistributors(distributors.map((d) => d._id));
     } else {
       setSelectedDistributors([]);
     }
@@ -535,10 +551,8 @@ function Distributors() {
     if (!confirmed) return;
 
     try {
-      await axios.delete(API_URL, {
-        data: { distributorIds: selectedDistributors },
-      });
-      fetchDistributors();
+      await distributorService.deleteManyDistributors(selectedDistributors);
+      await refresh();
       setSelectedDistributors([]);
       toast.success("Selected distributors deleted successfully");
     } catch (error) {
@@ -567,20 +581,18 @@ function Distributors() {
                   Distributor List
                 </h2>
                 <p className="text-sm text-gray-600">
-                  Total {distributors.length}
+                  Total {totalItems}
                 </p>
               </div>
               <div className="flex flex-col lg:flex-row items-stretch lg:items-center space-y-3 lg:space-y-0 lg:space-x-4">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                  <input
-                    type="text"
-                    placeholder="Search"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full lg:w-auto pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#4d55f5] focus:border-transparent"
-                  />
-                </div>
+                <DistributorFilters
+                  searchTerm={searchTerm}
+                  onSearchChange={setSearchTerm}
+                  stateFilter={filters.state}
+                  onStateFilterChange={(value) => setFilter("state", value)}
+                  states={states}
+                  onClearFilters={resetFilters}
+                />
                 <div className="flex items-center space-x-2">
                   <ExportToExcelButton
                     getData={getExportData}
@@ -631,9 +643,8 @@ function Distributors() {
                             onChange={handleSelectAll}
                             // checked when all items on current page are selected
                             checked={
-                              paginatedDistributors.length > 0 &&
-                              selectedDistributors.length ===
-                                paginatedDistributors.length
+                              distributors.length > 0 &&
+                              selectedDistributors.length === distributors.length
                             }
                           />
                         </th>
@@ -664,7 +675,7 @@ function Distributors() {
                       </tr>
                     </thead>
                     <ListComponent
-                      items={paginatedDistributors}
+                      items={distributors}
                       renderItem={(distributor) => (
                         <>
                           <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
@@ -776,7 +787,7 @@ function Distributors() {
                 <div className="md:hidden space-y-4">
                   {distributors.length > 0 ? (
                     <ListComponent
-                      items={paginatedDistributors}
+                      items={distributors}
                       renderItem={(distributor) => (
                         <div className="bg-gray-50 rounded-lg p-4 space-y-2">
                           <div className="flex justify-between items-start">
@@ -905,77 +916,22 @@ function Distributors() {
               </>
             )}
           </div>
-          {distributors.length > 0 && (
-            <div className="px-6 py-3 border-t border-gray-200 flex flex-col md:flex-row items-center md:justify-between gap-3 md:gap-0">
-              <div className="w-full md:w-auto flex items-center justify-between md:justify-start text-sm text-gray-700 space-x-2">
-                <div className="flex items-center space-x-2">
-                  <span className="whitespace-nowrap">Rows per page:</span>
-                  <select
-                    className="ml-2 border border-gray-300 rounded px-2 py-1"
-                    value={itemsPerPage}
-                    onChange={(e) => {
-                      setItemsPerPage(Number(e.target.value));
-                      // Clear selection when changing rows per page and reset to first page
-                      setSelectedDistributors([]);
-                      setCurrentPage(1);
-                    }}
-                  >
-                    <option value="10">10</option>
-                    <option value="25">25</option>
-                    <option value="50">50</option>
-                    <option value="75">75</option>
-                    <option value="100">100</option>
-                  </select>
-                </div>
-
-                {/* On larger screens show the verbose range text; hide on small screens */}
-                <div className="hidden md:block text-sm text-gray-700">
-                  Showing{" "}
-                  {paginatedDistributors.length > 0
-                    ? (currentPage - 1) * itemsPerPage + 1
-                    : 0}{" "}
-                  to {Math.min(currentPage * itemsPerPage, distributors.length)}{" "}
-                  of {distributors.length} distributors
-                </div>
-              </div>
-
-              <div className="w-full md:w-auto flex items-center justify-between md:justify-end space-x-2">
-                {/* On very small screens keep compact page info */}
-                <div className="text-sm text-gray-700 md:hidden">
-                  Page {currentPage} of {totalPages}
-                </div>
-
-                <div className="flex items-center space-x-2">
-                  <button
-                    onClick={() => {
-                      // clear selection when moving pages
-                      setSelectedDistributors([]);
-                      setCurrentPage((prev) => Math.max(1, prev - 1));
-                    }}
-                    disabled={currentPage === 1}
-                    className="px-3 py-1 text-sm border border-gray-300 rounded disabled:opacity-50"
-                  >
-                    Previous
-                  </button>
-
-                  <span className="text-sm text-gray-700 hidden md:inline">
-                    Page {currentPage} of {totalPages}
-                  </span>
-
-                  <button
-                    onClick={() => {
-                      // clear selection when moving pages
-                      setSelectedDistributors([]);
-                      setCurrentPage((prev) => Math.min(totalPages, prev + 1));
-                    }}
-                    disabled={currentPage === totalPages}
-                    className="px-3 py-1 text-sm border border-gray-300 rounded disabled:opacity-50"
-                  >
-                    Next
-                  </button>
-                </div>
-              </div>
-            </div>
+          {totalItems > 0 && (
+            <PaginationBar
+              page={page}
+              totalPages={totalPages}
+              totalItems={totalItems}
+              limit={limit}
+              itemLabel="distributors"
+              onPageChange={(nextPage) => {
+                setSelectedDistributors([]);
+                setPage(nextPage);
+              }}
+              onLimitChange={(nextLimit) => {
+                setSelectedDistributors([]);
+                setLimit(nextLimit);
+              }}
+            />
           )}
         </div>
       </div>
@@ -1340,7 +1296,30 @@ function Distributors() {
                   />
                   <p className="mt-2 text-xs text-gray-500">
                     The selected executive will keep scope only for this
-                    distributor and these dealers.
+                    distributor, these dealers, and the selected sub dealers.
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Sub Dealers
+                  </label>
+                  <MultiSelectDropdown
+                    items={assignmentSubDealers}
+                    selectedIds={assignmentSubDealerIds}
+                    onChange={setAssignmentSubDealerIds}
+                    placeholder="Select sub dealers"
+                    disabled={assignmentDealerIds.length === 0}
+                    loading={assignmentLoadingSubDealers}
+                    getLabel={(subDealer) => subDealer.name}
+                    getSubLabel={(subDealer) =>
+                      [subDealer.subDealerId, subDealer.city]
+                        .filter(Boolean)
+                        .join(" • ")
+                    }
+                  />
+                  <p className="mt-2 text-xs text-gray-500">
+                    Sub dealers are loaded from the selected dealers.
                   </p>
                 </div>
               </div>

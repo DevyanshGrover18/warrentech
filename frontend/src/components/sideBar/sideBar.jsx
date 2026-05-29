@@ -45,6 +45,10 @@ const sidebarItems = [
         path: '/dealers',
       },
       {
+        title: 'Sub Dealers',
+        path: '/sub-dealers',
+      },
+      {
         title: 'Technicians',
         path: '/technicians',
       },

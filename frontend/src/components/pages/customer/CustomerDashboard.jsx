@@ -1,9 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useContext, useEffect, useState } from 'react';
 import axios from 'axios';
-import { Link } from 'react-router-dom';
 import { ShoppingCart, RefreshCw } from 'lucide-react';
+import { AuthContext } from '../../../context/AuthContext';
+import DashboardSummaryLayout from '../../global/DashboardSummaryLayout';
 
 export default function CustomerDashboard() {
+    const { user } = useContext(AuthContext);
     const [loading, setLoading] = useState(true);
     const [counts, setCounts] = useState({ productsBought: 0, replacementRequests: 0 });
 
@@ -41,27 +43,13 @@ export default function CustomerDashboard() {
             <div className="p-1 bg-white min-h-50 mt-3 rounded-xl">
                 <div className="p-3 sm:p-6">
                     <h1 className="mb-5 font-bold text-lg">My Dashboard</h1>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 gap-4 lg:gap-4">
-                        {cards.map((card, idx) => (
-                            <Link to={card.path} key={idx}>
-                                <div className="rounded-xl shadow-card p-4 sm:p-6 text-white transition-transform hover:scale-102" style={{ background: card.bg }}>
-                                    <div className="flex items-start justify-between">
-                                        <div>
-                                            <div className="bg-white p-2 rounded-md inline-flex items-center justify-center mb-3 shadow-sm">
-                                                <span style={{ color: card.bg }}>{card.icon}</span>
-                                            </div>
-                                            <h3 className="text-sm font-semibold mb-1 text-white/90">{card.title}</h3>
-                                            {loading ? (
-                                                <div className="animate-pulse bg-white/20 h-8 w-16 rounded-md"></div>
-                                            ) : (
-                                                <p className="text-2xl sm:text-2xl font-bold">{card.count}</p>
-                                            )}
-                                        </div>
-                                    </div>
-                                </div>
-                            </Link>
-                        ))}
-                    </div>
+                    <DashboardSummaryLayout
+                        greetingTitle="Welcome back"
+                        greetingName={user?.name || user?.username || 'Customer'}
+                        greetingMessage="Your product space is ready. Check your purchases and replacement requests whenever you need them."
+                        cards={cards}
+                        loading={loading}
+                    />
                 </div>
             </div>
         </div>

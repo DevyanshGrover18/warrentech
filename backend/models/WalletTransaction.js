@@ -3,7 +3,7 @@ import mongoose from 'mongoose';
 const walletTransactionSchema = new mongoose.Schema({
     entityType: {
         type: String,
-        enum: ['distributor', 'dealer'],
+        enum: ['distributor', 'dealer', 'sub_dealer'],
         required: true,
     },
     entityId: {

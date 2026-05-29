@@ -51,6 +51,13 @@ const userTypes = [
     bg: "#09b961ff", // A distinct color for dealer
   },
   {
+    id: "sub_dealer",
+    title: "Sub Dealer",
+    description: "Sub Dealer operations",
+    icon: Building,
+    bg: "#8B5CF6", // Purple color
+  },
+  {
     id: "customer",
     title: "Customer",
     description: "Buyers and end customers",
@@ -122,6 +129,8 @@ export default function Login() {
         navigate("/distributor/dashboard");
       } else if (selectedUserType === "dealer") {
         navigate("/dealer/dashboard");
+      } else if (selectedUserType === "sub_dealer") {
+        navigate("/sub-dealer/dashboard");
       } else if (selectedUserType === "executive") {
         navigate("/executive/dashboard");
       } else if (selectedUserType === "technician") {
@@ -156,7 +165,7 @@ export default function Login() {
   };
 
   return (
-    <div className="flex md:flex-row flex-col h-full bg-gray-50">
+    <div className="flex md:flex-row flex-col min-h-screen bg-gray-50">
       <div className="hidden md:flex w-1/4 bg-gradient-to-br from-[#5b189b] to-[#5b189b] text-white items-center justify-center p-12">
         <div className="flex flex-col justify-center items-center">
           <img

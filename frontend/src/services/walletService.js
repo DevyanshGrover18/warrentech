@@ -20,6 +20,10 @@ export const walletService = {
     const response = await axios.get(`${API_URL}/overview${buildQueryString(params)}`);
     return response.data;
   },
+  getTransactions: async (params = {}) => {
+    const response = await axios.get(`${API_URL}/transactions${buildQueryString(params)}`);
+    return response.data;
+  },
   getEntityWallet: async (entityType, entityId, params = {}) => {
     const response = await axios.get(`${API_URL}/${entityType}/${entityId}${buildQueryString(params)}`);
     return response.data;

@@ -1,10 +1,12 @@
 import Dealer from '../models/Dealer.js';
 import Distributor from '../models/Distributor.js';
 import WalletTransaction from '../models/WalletTransaction.js';
+import SubDealer from '../models/SubDealer.js';
 
 const entityModels = {
     dealer: Dealer,
     distributor: Distributor,
+    sub_dealer: SubDealer,
 };
 
 export const getEntityModel = (entityType) => entityModels[entityType] || null;

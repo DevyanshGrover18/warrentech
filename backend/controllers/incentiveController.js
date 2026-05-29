@@ -38,6 +38,7 @@ export const updateIncentiveSettings = async (req, res) => {
         const settings = await ensureIncentiveSettings();
         settings.distributorPerSaleIncentive = Number(req.body.distributorPerSaleIncentive) || 0;
         settings.dealerPerSaleIncentive = Number(req.body.dealerPerSaleIncentive) || 0;
+        settings.subDealerPerSaleIncentive = Number(req.body.subDealerPerSaleIncentive) || 0;
         await settings.save();
 
         const pendingSales = await Sale.find({ incentiveStatus: 'pending_approval' });
@@ -46,6 +47,8 @@ export const updateIncentiveSettings = async (req, res) => {
                 sale.incentiveAmount = settings.distributorPerSaleIncentive;
             } else if (sale.incentiveType === 'dealer') {
                 sale.incentiveAmount = settings.dealerPerSaleIncentive;
+            } else if (sale.incentiveType === 'sub_dealer') {
+                sale.incentiveAmount = settings.subDealerPerSaleIncentive;
             }
             await sale.save();
         }));
@@ -60,12 +63,12 @@ export const getIncentives = async (req, res) => {
     try {
         await requireSalesManager(req.user);
 
-        const { status = 'all' } = req.query;
+        const { status = 'all', limit, page = 1 } = req.query;
         const filter = status === 'all'
             ? { incentiveStatus: { $in: ['incomplete', 'pending_approval', 'approved', 'rejected'] } }
             : { incentiveStatus: status };
 
-        const incentives = await Sale.find(filter)
+        let query = Sale.find(filter)
             .populate({
                 path: 'product',
                 populate: { path: 'model' },
@@ -75,6 +78,21 @@ export const getIncentives = async (req, res) => {
             .populate('customer', 'name phone email')
             .sort({ updatedAt: -1, soldAt: -1 });
 
+        if (limit) {
+            const skip = (parseInt(page) - 1) * parseInt(limit);
+            const [data, total] = await Promise.all([
+                query.skip(skip).limit(parseInt(limit)),
+                Sale.countDocuments(filter)
+            ]);
+            return res.json({
+                data,
+                total,
+                page: parseInt(page),
+                totalPages: Math.ceil(total / parseInt(limit))
+            });
+        }
+
+        const incentives = await query;
         res.json(incentives);
     } catch (error) {
         res.status(error.statusCode || 500).json({ message: error.message });

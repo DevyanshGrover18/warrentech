@@ -9,6 +9,7 @@ import {
     getOwnWallet,
     getWalletByEntity,
     getWalletOverview,
+    getWalletTransactions,
     rejectPayoutRequest,
 } from '../controllers/walletController.js';
 
@@ -31,6 +32,7 @@ const storage = multer.diskStorage({
 const upload = multer({ storage });
 
 router.get('/overview', verifyToken, getWalletOverview);
+router.get('/transactions', verifyToken, getWalletTransactions);
 router.get('/me', verifyToken, getOwnWallet);
 router.post('/payout-requests', verifyToken, createPayoutRequest);
 router.post('/payout-requests/:requestId/approve', verifyToken, upload.single('paymentProof'), approvePayoutRequest);

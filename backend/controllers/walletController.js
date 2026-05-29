@@ -2,12 +2,14 @@ import Dealer from '../models/Dealer.js';
 import Distributor from '../models/Distributor.js';
 import WalletTransaction from '../models/WalletTransaction.js';
 import WalletPayoutRequest from '../models/WalletPayoutRequest.js';
+import mongoose from 'mongoose';
 import { getSalesAccessContext } from '../utils/salesAccess.js';
 import { applyWalletTransaction } from '../utils/walletUtils.js';
 
 const getEntityModel = (entityType) => {
     if (entityType === 'dealer') return Dealer;
     if (entityType === 'distributor') return Distributor;
+    if (entityType === 'sub_dealer') return mongoose.model('SubDealer');
     return null;
 };
 
@@ -94,10 +96,9 @@ export const getWalletOverview = async (req, res) => {
             .sort({ createdAt: -1 })
             .populate('saleId', 'customerName soldAt');
 
-        if (transactionsLimit && transactionsLimit !== 'all') {
-            recentTransactionsQuery.limit(Number(transactionsLimit) || 5);
-        } else {
-            recentTransactionsQuery.limit(5);
+        const limit = transactionsLimit === 'all' ? null : (Number(transactionsLimit) || 10);
+        if (limit) {
+            recentTransactionsQuery.limit(limit);
         }
 
         const [distributors, dealers, recentTransactions, payoutRequests] = await Promise.all([
@@ -115,6 +116,51 @@ export const getWalletOverview = async (req, res) => {
             dealers,
             recentTransactions,
             payoutRequests,
+        });
+    } catch (error) {
+        res.status(error.statusCode || 500).json({ message: error.message });
+    }
+};
+
+export const getWalletTransactions = async (req, res) => {
+    try {
+        await requireSalesManager(req.user);
+        const { page = 1, limit = 20 } = req.query;
+        const skip = (parseInt(page) - 1) * parseInt(limit);
+
+        const [transactions, total] = await Promise.all([
+            WalletTransaction.find({})
+                .sort({ createdAt: -1 })
+                .populate('saleId', 'customerName soldAt')
+                .skip(skip)
+                .limit(parseInt(limit))
+                .lean(),
+            WalletTransaction.countDocuments({})
+        ]);
+
+        // Fetch names for all unique entities in this batch
+        const distributorIds = [...new Set(transactions.filter(t => t.entityType === 'distributor').map(t => t.entityId))];
+        const dealerIds = [...new Set(transactions.filter(t => t.entityType === 'dealer').map(t => t.entityId))];
+
+        const [distributors, dealers] = await Promise.all([
+            Distributor.find({ _id: { $in: distributorIds } }, 'name').lean(),
+            Dealer.find({ _id: { $in: dealerIds } }, 'name').lean()
+        ]);
+
+        const nameMap = {};
+        distributors.forEach(d => nameMap[`distributor:${d._id}`] = d.name);
+        dealers.forEach(d => nameMap[`dealer:${d._id}`] = d.name);
+
+        const data = transactions.map(t => ({
+            ...t,
+            entityName: nameMap[`${t.entityType}:${t.entityId}`] || 'Unknown'
+        }));
+
+        res.json({
+            data,
+            total,
+            page: parseInt(page),
+            totalPages: Math.ceil(total / parseInt(limit))
         });
     } catch (error) {
         res.status(error.statusCode || 500).json({ message: error.message });
@@ -141,12 +187,12 @@ export const getWalletByEntity = async (req, res) => {
 
 export const getOwnWallet = async (req, res) => {
     try {
-        if (!req.user || !['dealer', 'distributor'].includes(req.user.role)) {
-            return res.status(403).json({ message: 'Only dealers and distributors can view this wallet.' });
+        if (!req.user || !['dealer', 'distributor', 'sub_dealer'].includes(req.user.role)) {
+            return res.status(403).json({ message: 'Only dealers, distributors and sub dealers can view this wallet.' });
         }
 
         const entityType = req.user.role;
-        const entityId = req.user.role === 'dealer' ? req.user.dealer : req.user.distributor;
+        const entityId = req.user.role === 'dealer' ? req.user.dealer : (req.user.role === 'sub_dealer' ? req.user.subDealer : req.user.distributor);
         const { transactionsLimit, startDate, endDate } = req.query;
         const payload = await getWalletPayload(entityType, entityId, { transactionsLimit, startDate, endDate });
 
@@ -205,12 +251,12 @@ export const createManualDebit = async (req, res) => {
 
 export const createPayoutRequest = async (req, res) => {
     try {
-        if (!req.user || !['dealer', 'distributor'].includes(req.user.role)) {
-            return res.status(403).json({ message: 'Only dealers and distributors can create payout requests.' });
+        if (!req.user || !['dealer', 'distributor', 'sub_dealer'].includes(req.user.role)) {
+            return res.status(403).json({ message: 'Only dealers, distributors and sub dealers can create payout requests.' });
         }
 
         const entityType = req.user.role;
-        const entityId = req.user.role === 'dealer' ? req.user.dealer : req.user.distributor;
+        const entityId = req.user.role === 'dealer' ? req.user.dealer : (req.user.role === 'sub_dealer' ? req.user.subDealer : req.user.distributor);
         const { amount, reason = '' } = req.body;
         const numericAmount = Number(amount) || 0;
 

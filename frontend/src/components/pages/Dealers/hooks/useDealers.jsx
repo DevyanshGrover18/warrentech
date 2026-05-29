@@ -1,98 +1,120 @@
-import { useState, useEffect, useCallback } from 'react';
-import { dealerService } from '../services/dealerService';
+import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { confirmDelete } from '../../../global/deleteConfirm';
+import { usePaginatedList } from '../../../../hooks/usePaginatedList';
+import { dealerService } from '../services/dealerService';
+import { distributorService } from '../../../../services/distributorService';
 
 export const useDealers = () => {
-    const [searchTerm, setSearchTerm] = useState('');
-    const [dealers, setDealers] = useState([]);
-    const [loading, setLoading] = useState(true);
     const [distributors, setDistributors] = useState([]);
 
-    const fetchDealers = useCallback(async () => {
-        try {
-            setLoading(true);
-            const response = await dealerService.fetchDealers(searchTerm);
-            setDealers(response.data);
-        } catch (error) {
-            toast.error(error.response?.data?.message || 'Error fetching dealers');
-        } finally {
-            setLoading(false);
-        }
-    }, [searchTerm]);
-
-    const fetchDistributors = useCallback(async () => {
-        try {
-            const response = await dealerService.fetchDistributors();
-            setDistributors(response.data);
-        } catch (error) {
-            toast.error('Error fetching distributors');
-        }
+    const fetchDealersPage = useCallback(async (params) => {
+        return await dealerService.fetchDealers(params);
     }, []);
 
-    useEffect(() => {
-        const debounceSearch = setTimeout(() => {
-            fetchDealers();
-        }, 300);
+    const {
+        items: dealers,
+        loading,
+        error,
+        page,
+        limit,
+        totalItems,
+        totalPages,
+        searchTerm,
+        filters,
+        setPage,
+        setLimit,
+        setSearchTerm,
+        setFilter,
+        resetFilters,
+        refresh,
+    } = usePaginatedList(fetchDealersPage, {
+        initialLimit: 10,
+        initialFilters: {
+            state: 'all',
+            distributorId: 'all'
+        },
+        onError: (err) => toast.error(err.response?.data?.message || 'Error fetching dealers')
+    });
 
-        return () => clearTimeout(debounceSearch);
-    }, [searchTerm, fetchDealers]);
-
     useEffect(() => {
-        fetchDistributors();
-    }, [fetchDistributors]);
+        const fetchInitialData = async () => {
+            try {
+                const distributorsData = await distributorService.fetchDistributors({ paginate: false });
+                setDistributors(distributorsData || []);
+            } catch (err) {
+                toast.error('Failed to load distributors');
+            }
+        };
+        fetchInitialData();
+    }, []);
 
     const addDealer = async (dealerData) => {
         try {
-            const response = await dealerService.createDealer(dealerData);
-            setDealers(prev => [...prev, response.data]);
+            await dealerService.createDealer(dealerData);
+            await refresh();
             toast.success('Dealer added successfully');
             return true;
-        } catch (error) {
-            toast.error(error.response?.data?.message || 'Error adding dealer');
+        } catch (err) {
+            toast.error(err.response?.data?.message || 'Error adding dealer');
             return false;
         }
     };
 
     const updateDealer = async (dealerId, dealerData) => {
         try {
-            const response = await dealerService.updateDealer(dealerId, dealerData);
-            setDealers(prev => prev.map(d => d._id === dealerId ? response.data : d));
+            await dealerService.updateDealer(dealerId, dealerData);
+            await refresh();
             toast.success('Dealer updated successfully');
             return true;
-        } catch (error) {
-            toast.error(error.response?.data?.message || 'Error updating dealer');
+        } catch (err) {
+            toast.error(err.response?.data?.message || 'Error updating dealer');
             return false;
         }
     };
 
-    const deleteDealer = async (dealerId) => {
-        const dealer = dealers.find(d => d._id === dealerId);
+    const deleteDealer = async (dealerId, dealerName) => {
         const confirmed = await confirmDelete({
             entityLabel: 'dealer',
-            itemName: dealer?.name,
+            itemName: dealerName
         });
 
         if (!confirmed) return false;
 
         try {
             await dealerService.deleteDealer(dealerId);
-            setDealers(prev => prev.filter(d => d._id !== dealerId));
+            await refresh();
             toast.success('Dealer deleted successfully');
             return true;
-        } catch (error) {
-            toast.error(error.response?.data?.message || 'Error deleting dealer');
+        } catch (requestError) {
+            toast.error(requestError.response?.data?.message || 'Error deleting dealer');
             return false;
         }
     };
 
+    const resetDealerFilters = useCallback(() => {
+        resetFilters();
+    }, [resetFilters]);
+
     return {
-        searchTerm,
-        setSearchTerm,
         dealers,
-        loading,
         distributors,
-        fetchDealers,
+        loading,
+        error,
+        page,
+        limit,
+        totalItems,
+        totalPages,
+        searchTerm,
+        stateFilter: filters.state,
+        distributorFilter: filters.distributorId,
+        setPage,
+        setLimit,
+        setSearchTerm,
+        setStateFilter: (value) => setFilter('state', value),
+        setDistributorFilter: (value) => setFilter('distributorId', value),
+        resetFilters: resetDealerFilters,
+        refresh,
         addDealer,
         updateDealer,
         deleteDealer,

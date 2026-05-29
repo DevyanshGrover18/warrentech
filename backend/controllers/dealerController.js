@@ -2,12 +2,23 @@ import Dealer from '../models/Dealer.js';
 import Distributor from '../models/Distributor.js';
 import User from '../models/User.js';
 import bcrypt from 'bcryptjs';
+import mongoose from 'mongoose';
 import { getExecutiveScope } from '../utils/executiveScope.js';
+import { buildPaginatedAggregationResponse, parsePaginatedListQuery } from '../utils/paginatedList.js';
 
 export const getDealers = async (req, res) => {
     try {
-        const { search } = req.query;
+        const { search, state, distributorId } = req.query;
         const scope = await getExecutiveScope(req.user);
+        const listQuery = parsePaginatedListQuery(req.query, {
+            defaultLimit: 25,
+            maxLimit: 100,
+            defaultSortBy: 'createdAt',
+            defaultSortOrder: 'desc',
+        });
+        const sortableFields = new Set(['createdAt', 'name', 'dealerId', 'city', 'state', 'productCount']);
+        const sortField = sortableFields.has(listQuery.sortBy) ? listQuery.sortBy : 'createdAt';
+        const sortStage = { $sort: { [sortField]: listQuery.sortOrder === 'asc' ? 1 : -1 } };
         let matchQuery = {};
 
         if (search) {
@@ -16,9 +27,20 @@ export const getDealers = async (req, res) => {
                     { name: { $regex: search, $options: 'i' } },
                     { address: { $regex: search, $options: 'i' } },
                     { state: { $regex: search, $options: 'i' } },
-                    { city: { $regex: search, $options: 'i' } }
+                    { city: { $regex: search, $options: 'i' } },
+                    { dealerId: { $regex: search, $options: 'i' } },
                 ]
             };
+        }
+
+        if (state && state !== 'all') {
+            matchQuery.state = state;
+        }
+
+        if (distributorId && distributorId !== 'all') {
+            if (mongoose.Types.ObjectId.isValid(distributorId)) {
+                matchQuery.distributor = new mongoose.Types.ObjectId(distributorId);
+            }
         }
 
         if (scope.isExecutive) {
@@ -28,7 +50,7 @@ export const getDealers = async (req, res) => {
             };
         }
 
-        const dealers = await Dealer.aggregate([
+        const basePipeline = [
             { $match: matchQuery },
             {
                 $lookup: {
@@ -63,8 +85,39 @@ export const getDealers = async (req, res) => {
                     preserveNullAndEmptyArrays: true
                 }
             },
-            { $sort: { createdAt: -1 } }
-        ]);
+            sortStage
+        ];
+
+        if (listQuery.paginate) {
+            const paginatedResult = await Dealer.aggregate([
+                ...basePipeline,
+                {
+                    $facet: {
+                        items: [
+                            { $skip: listQuery.skip },
+                            { $limit: listQuery.limit },
+                        ],
+                        totalCount: [
+                            { $count: 'count' },
+                        ],
+                    },
+                },
+            ]);
+
+            return res.json(buildPaginatedAggregationResponse(paginatedResult, {
+                page: listQuery.page,
+                limit: listQuery.limit,
+                appliedFilters: {
+                    search: search || '',
+                    state: state || 'all',
+                    distributorId: distributorId || 'all',
+                    sortBy: sortField,
+                    sortOrder: listQuery.sortOrder,
+                },
+            }));
+        }
+
+        const dealers = await Dealer.aggregate(basePipeline);
 
         res.json(dealers);
     } catch (error) {

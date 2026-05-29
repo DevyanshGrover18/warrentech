@@ -1,11 +1,11 @@
 import express from 'express';
 import { getFactories, getFactoryById, createFactory, updateFactory, deleteFactory, getFactoryOrders, updateOrderItemStatus, bulkUpdateOrderItemStatus, getFactorySales, deleteMultipleFactories, checkFactoryCodeUniqueness, getNewOrdersCount, markOrdersSeen } from '../controllers/factoryController.js';
-import { verifyToken, checkPermission, checkSectionAccess } from '../middleware/roleMiddleware.js';
+import { verifyToken, checkPermission, checkSectionAccess, checkAnySectionAccess } from '../middleware/roleMiddleware.js';
 
 const router = express.Router();
 
 // @route   GET /api/factories
-router.get('/', verifyToken, checkSectionAccess('factories'), getFactories);
+router.get('/', verifyToken, checkAnySectionAccess(['factories', 'products', 'sales']), getFactories);
 
 // @route   GET /api/factories/:id
 router.get('/:id', verifyToken, getFactoryById);

@@ -10,6 +10,10 @@ const saleSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Dealer'
     },
+    subDealer: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'SubDealer'
+    },
     distributor: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Distributor'
@@ -42,16 +46,20 @@ const saleSchema = new mongoose.Schema({
   plumberPhone: {
     type: String,
   },
+  soldBy: {
+    type: String,
+    trim: true,
+  },
   createdByRole: {
     type: String,
-    enum: ['admin', 'member', 'distributor', 'dealer'],
+    enum: ['admin', 'member', 'distributor', 'dealer', 'sub_dealer'],
   },
   createdByUserId: {
     type: mongoose.Schema.Types.ObjectId,
   },
   createdByEntityType: {
     type: String,
-    enum: ['distributor', 'dealer', null],
+    enum: ['distributor', 'dealer', 'sub_dealer', null],
     default: null,
   },
   createdByEntityId: {
@@ -60,7 +68,7 @@ const saleSchema = new mongoose.Schema({
   },
   formCompletedByRole: {
     type: String,
-    enum: ['admin', 'member', 'distributor', 'dealer', null],
+    enum: ['admin', 'member', 'distributor', 'dealer', 'sub_dealer', null],
     default: null,
   },
   formCompletedByUserId: {
@@ -77,7 +85,7 @@ const saleSchema = new mongoose.Schema({
   },
   incentiveType: {
     type: String,
-    enum: ['distributor', 'dealer', null],
+    enum: ['distributor', 'dealer', 'sub_dealer', null],
     default: null,
   },
   incentiveAmount: {

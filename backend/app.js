@@ -31,6 +31,9 @@ import executiveRoutes from './routes/executiveRoutes.js'
 import incentiveRoutes from './routes/incentiveRoutes.js';
 import walletRoutes from './routes/walletRoutes.js';
 
+import subDealerRoutes from './routes/subDealerRoutes.js';
+import dealerSubDealerProductRoutes from './routes/dealerSubDealerProductRoutes.js';
+
 dotenv.config();
 
 const PORT = process.env.PORT || 5000;
@@ -70,6 +73,8 @@ app.use('/api/technicians', technicianRoutes);
 app.use('/api/billing-config', billingConfigRoutes);
 app.use('/api/executive', executiveRoutes)
 app.use('/api/incentives', incentiveRoutes);
+app.use('/api/sub-dealers', subDealerRoutes);
+app.use('/api/dealer-sub-dealer-products', dealerSubDealerProductRoutes);
 app.use('/api/wallets', walletRoutes);
 
 app.get("/", (req, res) => {

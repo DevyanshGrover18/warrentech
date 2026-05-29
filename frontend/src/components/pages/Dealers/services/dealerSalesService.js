@@ -24,6 +24,17 @@ export const getDealerSales = async (dealerId) => {
   }
 };
 
+// Fetch all sales for a specific sub dealer
+export const getSubDealerSales = async (subDealerId) => {
+    try {
+      const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/sales/sub-dealer/${subDealerId}`);
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching sub dealer sales:', error);
+      throw error;
+    }
+  };
+
 // Update a sale
 export const updateSale = async (saleId, saleData) => {
   try {
